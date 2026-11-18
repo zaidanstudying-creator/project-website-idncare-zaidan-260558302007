@@ -20,6 +20,7 @@ Table users {
   unit_or_prodi varchar(255)
   is_active boolean [not null, default: true]
   must_change_password boolean [not null, default: true]
+  auth_version int [not null, default: 1, note: 'incremented to invalidate active sessions after password reset or deactivation']
   is_dorm_resident boolean [not null, default: false, note: 'disiapkan untuk modul asrama']
   remember_token varchar(100)
   created_at timestamp
@@ -67,6 +68,8 @@ Table reports {
   completed_at timestamp
   confirmed_at timestamp
   reopened_count tinyint [not null, default: 0]
+  academic_year varchar(20)
+  archived_at timestamp
   created_at timestamp
   updated_at timestamp
 

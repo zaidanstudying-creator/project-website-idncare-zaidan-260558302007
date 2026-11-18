@@ -64,7 +64,7 @@ Risiko yang diidentifikasi dan mitigasinya:
 - Laporan selesai terkonfirmasi otomatis setelah **7 hari** tanpa respons pelapor.
 - Data laporan disimpan **satu tahun ajaran**, dan hanya Super Admin yang boleh mengarsipkan atau menghapus.
 - Login memakai **ID pengguna** dan password yang dibuat admin. Tidak ada pendaftaran mandiri. Sekitar **400 akun mahasiswa** diimpor dari Excel.
-- Saran judul laporan memakai **Google Gemini API (tier gratis)**, juga untuk laporan pelanggaran, dengan data pribadi disamarkan sebelum dikirim.
+- Saran judul laporan memakai **Groq API**, juga untuk laporan pelanggaran, dengan data pribadi disamarkan sebelum dikirim.
 - Notifikasi **hanya di dalam aplikasi** (tanpa email atau WhatsApp).
 
 ---
@@ -93,10 +93,10 @@ Risiko yang diidentifikasi dan mitigasinya:
 
 | Peran (`role`) | Hak utama |
 |---|---|
-| `mahasiswa` | Membuat laporan, melihat laporan sendiri (termasuk rahasia dan anonim), melihat laporan umum milik orang lain, melihat foto sesudah perbaikan, mengonfirmasi atau membuka kembali laporan, mengelola profil dan password sendiri |
+| `mahasiswa` | Membuat laporan, melihat laporan sendiri (termasuk rahasia dan anonim), melihat laporan umum milik orang lain, melihat foto sesudah perbaikan, mengonfirmasi atau membuka kembali laporan, melihat profil akun (baca saja), dan mengganti password sendiri melalui alur terpisah |
 | `admin_sarpras` | Menangani **laporan fasilitas**: melihat, mengubah status, wajib unggah foto sesudah perbaikan saat Selesai, menyetujui atau menolak permintaan visibilitas umum, mengelola kategori fasilitas dan lokasi |
 | `admin_kemahasiswaan` | Menangani **aspirasi** dan **dugaan pelanggaran**: melihat, mengubah status, memberi catatan atau alasan penolakan, menyetujui atau menolak permintaan visibilitas umum (aspirasi), mengelola kategori aspirasi dan pelanggaran serta lokasi |
-| `super_admin` | Mengelola akun (ID dan password, impor Excel, reset), kategori dan lokasi, melihat seluruh dashboard dan activity log, melihat semua laporan, mengarsipkan atau menghapus data per tahun ajaran. **Tidak dapat membuka identitas pelapor pelanggaran anonim.** |
+| `super_admin` | Mengelola akun (ID dan password, impor Excel, reset), mengubah data mahasiswa lain (nama, program studi, NIM, angkatan), kategori dan lokasi, melihat seluruh dashboard dan activity log, melihat semua laporan, mengarsipkan atau menghapus data per tahun ajaran. **Tidak dapat membuka identitas pelapor pelanggaran anonim.** |
 
 Aturan akses ditegakkan di sisi server (Policy dan scope query), bukan hanya di tampilan.
 
@@ -136,7 +136,7 @@ Admin hanya melihat laporan unitnya. Super admin melihat semua.
 ### 6.2 Status laporan
 `dikirim` → `diverifikasi` → `diproses` → `selesai`, atau `ditolak` (alasan wajib).
 - Laporan fasilitas **tidak boleh** berstatus `selesai` tanpa minimal satu lampiran `after` (dicek di server).
-- Setelah `selesai`, pelapor dapat **mengonfirmasi** atau **membuka kembali** (wajib alasan, status kembali `diproses`, `reopened_count` bertambah; batasi maksimal 2 kali).
+- Setelah `selesai`, pelapor dapat **mengonfirmasi** atau **membuka kembali** (wajib alasan, status kembali `diproses`, `reopened_count` bertambah). Batas maksimal dua kali masih berupa usulan dan belum diterapkan; lihat bagian 18.
 - Jika pelapor tidak merespons dalam 7 hari sejak `completed_at`, laporan terkonfirmasi otomatis (`confirmed_at` diisi lewat scheduler).
 - Setiap perubahan status dicatat di `report_status_histories`.
 
@@ -156,7 +156,8 @@ Admin hanya melihat laporan unitnya. Super admin melihat semua.
 ### 6.5 Akun
 - Login: `user_code` + `password`. Hanya akun `is_active = true`.
 - Akun dibuat admin. `must_change_password = true` untuk akun baru dan setelah reset, dan pengguna diarahkan ke halaman ganti password sampai selesai.
-- Impor Excel: unduh template (`user_code`, `name`, `unit_or_prodi`), validasi baris (ID unik, kolom wajib), pratinjau, laporan baris gagal, password awal acak.
+- Impor Excel: unduh template (`user_code`, `name`, `unit_or_prodi`, `nim`, `angkatan`), validasi baris (ID dan NIM unik, kolom wajib), pratinjau, laporan baris gagal, password awal acak. Format lama tiga kolom tetap diterima untuk kompatibilitas.
+- **Profil semua peran adalah halaman informasi akun baca saja.** Halaman menampilkan data akun yang tersedia, seperti nama, ID pengguna, peran, unit/program studi, dan status. Profil mahasiswa juga menampilkan NIM dan angkatan. Saat admin mendaftarkan akun mahasiswa, program studi (Teknologi rekayasa perangkat lunak, Komputer jaringan, atau Media grafis), NIM, dan angkatan wajib diisi. Super Admin dapat mengubah nama, program studi, NIM, dan angkatan akun mahasiswa lain melalui halaman pengelolaan akun; ID login, peran, status, dan password tidak diubah melalui formulir ini. Pengguna dapat mengganti password miliknya melalui alur terpisah yang meminta password saat ini, password baru minimal 8 karakter, konfirmasi yang cocok, dan password baru yang berbeda dari password saat ini. Perubahan profil pribadi tetap tidak tersedia.
 
 ### 6.6 Master data
 - Kategori per jenis laporan, lokasi satu level (tanpa hierarki). Dinonaktifkan (`is_active = false`), tidak dihapus jika sudah dipakai laporan.
@@ -166,7 +167,7 @@ Admin hanya melihat laporan unitnya. Super admin melihat semua.
 Append-only, tidak ada route ubah atau hapus. Mencatat: login, logout, kirim laporan, ubah status, persetujuan visibilitas, unggah foto, perubahan master data dan akun, konfirmasi atau buka kembali, pengarsipan atau penghapusan data.
 
 ### 6.8 Retensi
-Data laporan disimpan satu tahun ajaran. Hanya super admin yang boleh mengarsipkan atau menghapus (dua langkah konfirmasi, dalam transaksi, hapus juga berkas foto, dicatat di log).
+Data laporan disimpan satu tahun ajaran. Hanya Super Admin yang boleh mengarsipkan atau menghapus. Pengarsipan MVP memakai dua langkah konfirmasi dan transaksi, menandai rentang laporan dengan label tahun ajaran tanpa menghapus baris atau lampiran. Penghapusan fisik, jika kelak diputuskan, harus memakai dua langkah konfirmasi, transaksi, menghapus berkas foto, dan dicatat di log.
 
 ---
 
@@ -190,7 +191,7 @@ Login, otorisasi, dan pengelolaan akun tidak dihitung sebagai fitur di bawah.
 | 12 | Activity log | 4 |
 | 13 | Dashboard dan grafik | 4 |
 | 14 | Notifikasi dalam aplikasi | 5 |
-| 15 | Saran judul dari AI (Gemini) | 5 |
+| 15 | Saran judul dari AI (Groq) | 5 |
 | 16 | Pengarsipan data per tahun ajaran | 5 |
 
 ---
@@ -231,11 +232,11 @@ Database MySQL, collation `utf8mb4_unicode_ci`. Skema DBML lengkap ada di file `
 
 | Tabel | Kolom utama |
 |---|---|
-| `users` | id, user_code (unique), name, password, role (enum), unit_or_prodi, is_active, must_change_password, is_dorm_resident, remember_token, timestamps |
+| `users` | id, user_code (unique), name, password, role (enum), unit_or_prodi, nim (unique, nullable), angkatan (nullable), is_active, must_change_password, is_dorm_resident, auth_version (session invalidation), remember_token, timestamps |
 | `report_types` | id, code (fasilitas, aspirasi, pelanggaran), name |
 | `categories` | id, report_type_id (FK), name, is_active |
 | `locations` | id, name, is_active |
-| `reports` | id, ticket_no (unique), reporter_id (nullable FK), reporter_token (nullable, index), report_type_id, category_id, location_id (nullable), title, description, incident_date (nullable), related_party (nullable), status, requested_visibility, visibility_status, approved_visibility, is_anonymous, assigned_unit, rejected_reason, completed_at, confirmed_at, reopened_count, timestamps. Index: (status, report_type_id, created_at) |
+| `reports` | id, ticket_no (unique), reporter_id (nullable FK), reporter_token (nullable, index), report_type_id, category_id, location_id (nullable), title, description, incident_date (nullable), related_party (nullable), status, requested_visibility, visibility_status, approved_visibility, is_anonymous, assigned_unit, rejected_reason, completed_at, confirmed_at, reopened_count, academic_year (nullable), archived_at (nullable), timestamps. Index: (status, report_type_id, created_at) |
 | `report_attachments` | id, report_id (FK cascade), file_path, kind (before, after, evidence), uploaded_by (nullable FK), created_at |
 | `report_status_histories` | id, report_id (FK cascade), from_status, to_status, note, changed_by (nullable FK), created_at |
 | `activity_logs` | id, user_id (nullable), role, action, subject_type, subject_id, old_values (json), new_values (json), ip_address (nullable), created_at |
@@ -253,12 +254,12 @@ Tabel pengembangan lanjutan: `report_messages`, `piket_groups`, `piket_group_mem
 - **Database:** MySQL.
 - **Front-end:** Blade + Tailwind CSS (Vite), Chart.js untuk grafik. Tidak memakai starter kit; login dibuat sendiri.
 - **Penyimpanan file:** disk **privat** Laravel (`storage/app/private`), ditampilkan lewat route yang memeriksa izin. Jangan taruh foto di folder publik.
-- **AI:** Google Gemini API dipanggil dari server (kunci di `.env`). Nama model dari dokumentasi Gemini, simpan di `GEMINI_MODEL`.
+- **AI:** Groq API dipanggil dari server (kunci di `.env`). Model disimpan di `GROQ_MODEL`.
 - **Impor Excel:** `maatwebsite/excel` bila kompatibel, jika tidak pakai CSV (`fgetcsv`).
 - **Lingkungan lokal:** Laragon, Laravel Herd (MySQL via DBngin), atau FlyEnv. Panduan pemasangan ada di dokumen terpisah.
 - **Zona waktu:** `Asia/Jakarta`. Locale `id`.
 
-Variabel `.env` khusus: `REPORT_TOKEN_KEY` (32 byte hex, dibuat sekali, diakses lewat `config('app.report_key')`), `GEMINI_API_KEY`, `GEMINI_MODEL`.
+Variabel `.env` khusus: `REPORT_TOKEN_KEY` (32 byte hex, dibuat sekali, diakses lewat `config('app.report_key')`), `GROQ_API_KEY`, `GROQ_MODEL`, dan `AI_TITLE_ENABLED`.
 
 ---
 
@@ -367,7 +368,8 @@ Aturan bersama untuk semua prompt: "Jangan mengerjakan di luar tahap ini. Jangan
 
 ## 18. Asumsi dan hal yang belum diputuskan
 
-- Batas pembukaan kembali laporan (usulan 2 kali) dan format nomor tiket (`IDN-YYMMDD-XXXX`) adalah usulan default.
+- Batas pembukaan kembali laporan maksimal 2 kali masih berupa usulan dan belum diterapkan. Pengarsipan tahap MVP memakai rentang tanggal yang dimasukkan Super Admin saat tindakan arsip; baris laporan dan lampirannya dipertahankan dengan penanda tahun ajaran.
+- Format nomor tiket (`IDN-YYMMDD-XXXX`) adalah usulan default.
 - Pertanyaan modul asrama yang ditunda: siapa pengelola (Admin Asrama atau Kemahasiswaan), apakah ada bendahara terpisah, siapa yang melihat daftar tunggakan kas, dan prioritas modul.
 - Kebijakan retensi detail dan domain hosting belum ditentukan.
 - Nama kampus, kontak, dan unit pengelola di footer masih placeholder.

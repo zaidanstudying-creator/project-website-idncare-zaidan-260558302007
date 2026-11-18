@@ -1,0 +1,634 @@
+<?php
+
+use App\Enums\StudyProgram;
+use App\Enums\UserRole;
+use App\Http\Controllers\Admin\UserImportController;
+use App\Models\Category;
+use App\Models\Report;
+use App\Models\ReportType;
+use App\Models\User;
+use App\Services\GroqTitleSuggestionService;
+use App\Services\ReportStatusService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+
+uses(RefreshDatabase::class);
+
+function stageNineAdmin(): User
+{
+    return User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
+}
+
+function stageNineReport(User $reporter): Report
+{
+    $type = ReportType::firstOrCreate(['code' => ReportType::ASPIRASI], ['name' => 'Aspirasi']);
+    $category = Category::firstOrCreate(['report_type_id' => $type->id, 'name' => 'Akademik'], ['is_active' => true]);
+
+    return Report::create([
+        'ticket_no' => 'IDN-'.strtoupper(bin2hex(random_bytes(4))),
+        'reporter_id' => $reporter->id,
+        'report_type_id' => $type->id,
+        'category_id' => $category->id,
+        'title' => 'Usulan layanan kampus',
+        'description' => 'Mohon tinjau usulan ini.',
+        'status' => Report::STATUS_DIKIRIM,
+        'requested_visibility' => Report::VISIBILITY_RAHASIA,
+        'visibility_status' => Report::VISIBILITY_PENDING,
+        'assigned_unit' => ReportType::UNIT_KEMAHASISWAAN,
+    ]);
+}
+
+it('shows the available study programs on the student account form', function (): void {
+    $admin = stageNineAdmin();
+    $response = $this->actingAs($admin)
+        ->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.users.index'))
+        ->assertOk()
+        ->assertSee('Pilih program studi');
+
+    foreach (StudyProgram::cases() as $program) {
+        $response->assertSee($program->value);
+    }
+});
+
+it('allows only super admins to create accounts and never records generated passwords in activity logs', function (): void {
+    $student = User::factory()->create(['must_change_password' => false]);
+    $payload = ['user_code' => 'MHS-NEW-8', 'name' => 'Mahasiswa Baru', 'role' => UserRole::MAHASISWA->value, 'unit_or_prodi' => 'Teknologi rekayasa perangkat lunak', 'nim' => '20260008', 'angkatan' => 2026];
+    $this->actingAs($student)->post(route('admin.users.store'), $payload)->assertForbidden();
+
+    $admin = stageNineAdmin();
+    $this->actingAs($admin)->post(route('admin.users.store'), $payload)->assertRedirect(route('admin.users.index'));
+    $created = User::query()->where('user_code', 'MHS-NEW-8')->firstOrFail();
+    expect($created->must_change_password)->toBeTrue()
+        ->and($created->unit_or_prodi)->toBe('Teknologi rekayasa perangkat lunak')
+        ->and($created->nim)->toBe('20260008')
+        ->and($created->angkatan)->toBe(2026)
+        ->and($created->is_active)->toBeTrue()
+        ->and(session('temporary_credentials.0.password'))->not->toBeEmpty();
+    $log = $admin->activityLogs()->where('action', 'user_created')->firstOrFail();
+    expect(json_encode($log->new_values))->not->toContain(session('temporary_credentials.0.password'));
+});
+
+it('requires study program, NIM, and cohort year when creating a student account', function (): void {
+    $admin = stageNineAdmin();
+
+    $this->actingAs($admin)
+        ->from(route('admin.users.index'))
+        ->post(route('admin.users.store'), [
+            'user_code' => 'MHS-MISSING-DATA',
+            'name' => 'Mahasiswa Tanpa Data',
+            'role' => UserRole::MAHASISWA->value,
+        ])
+        ->assertSessionHasErrors(['unit_or_prodi', 'nim', 'angkatan']);
+
+    expect(User::query()->where('user_code', 'MHS-MISSING-DATA')->exists())->toBeFalse();
+
+    $this->actingAs($admin)->post(route('admin.users.store'), [
+        'user_code' => 'MHS-INVALID-PROGRAM',
+        'name' => 'Mahasiswa Prodi Salah',
+        'role' => UserRole::MAHASISWA->value,
+        'unit_or_prodi' => 'Program Studi Tidak Terdaftar',
+        'nim' => '20260011',
+        'angkatan' => 2026,
+    ])->assertSessionHasErrors('unit_or_prodi');
+});
+
+it('lets super admins edit identity details of another student and records the changes', function (): void {
+    $admin = stageNineAdmin();
+    $student = User::factory()->create([
+        'name' => 'Nama Sebelumnya',
+        'unit_or_prodi' => StudyProgram::KOMPUTER_JARINGAN->value,
+        'nim' => '20250012',
+        'angkatan' => 2025,
+    ]);
+
+    $this->actingAs($admin)
+        ->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.users.edit', $student))
+        ->assertOk()
+        ->assertSee('Edit informasi mahasiswa')
+        ->assertSee('20250012');
+
+    $this->actingAs($admin)->put(route('admin.users.update', $student), [
+        'name' => 'Nama Diperbarui',
+        'unit_or_prodi' => StudyProgram::MEDIA_GRAFIS->value,
+        'nim' => '20260012',
+        'angkatan' => 2026,
+        'role' => UserRole::SUPER_ADMIN->value,
+        'user_code' => 'ID-DIUBAH',
+    ])->assertRedirect(route('admin.users.index'));
+
+    expect($student->fresh()->name)->toBe('Nama Diperbarui')
+        ->and($student->fresh()->unit_or_prodi)->toBe(StudyProgram::MEDIA_GRAFIS->value)
+        ->and($student->fresh()->nim)->toBe('20260012')
+        ->and($student->fresh()->angkatan)->toBe(2026)
+        ->and($student->fresh()->role)->toBe(UserRole::MAHASISWA)
+        ->and($student->fresh()->user_code)->not->toBe('ID-DIUBAH');
+
+    $log = $admin->activityLogs()->where('action', 'student_account_updated')->firstOrFail();
+    expect($log->old_values['nim'])->toBe('20250012')
+        ->and($log->new_values['nim'])->toBe('20260012');
+});
+
+it('rejects student identity changes from non-super admins and prevents NIM reuse', function (): void {
+    $student = User::factory()->create([
+        'nim' => '20260013',
+        'unit_or_prodi' => StudyProgram::TEKNOLOGI_REKAYASA_PERANGKAT_LUNAK->value,
+    ]);
+    $otherStudent = User::factory()->create(['nim' => '20260014', 'must_change_password' => false]);
+    $payload = [
+        'name' => 'Nama Baru',
+        'unit_or_prodi' => StudyProgram::KOMPUTER_JARINGAN->value,
+        'nim' => '20260014',
+        'angkatan' => 2026,
+    ];
+
+    $this->actingAs($otherStudent)
+        ->put(route('admin.users.update', $student), $payload)
+        ->assertForbidden();
+
+    $admin = stageNineAdmin();
+    $this->actingAs($admin)
+        ->from(route('admin.users.edit', $student))
+        ->put(route('admin.users.update', $student), $payload)
+        ->assertSessionHasErrors('nim');
+
+    $staff = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS]);
+    $this->get(route('admin.users.edit', $staff))->assertNotFound();
+});
+
+it('resets another account with a one-time password and requires it to change that password', function (): void {
+    $admin = stageNineAdmin();
+    $target = User::factory()->create(['user_code' => 'MHS-RESET', 'must_change_password' => false]);
+    $originalHash = $target->password;
+    $this->actingAs($admin)->post(route('admin.users.reset-password', $target))->assertRedirect(route('admin.users.index'));
+    $temporaryPassword = session('temporary_credentials.0.password');
+    expect($target->fresh()->must_change_password)->toBeTrue()
+        ->and($target->fresh()->password)->not->toBe($originalHash)
+        ->and($temporaryPassword)->not->toBeEmpty()
+        ->and($admin->activityLogs()->where('action', 'user_password_reset')->firstOrFail()->new_values)->toBe(['must_change_password' => true]);
+});
+
+it('invalidates an already open session after an administrator resets that account password', function (): void {
+    $admin = stageNineAdmin();
+    $target = User::factory()->create(['must_change_password' => false, 'auth_version' => 1]);
+
+    $this->actingAs($admin)->post(route('admin.users.reset-password', $target))->assertRedirect(route('admin.users.index'));
+    expect($target->fresh()->auth_version)->toBe(2);
+
+    $this->withSession(['auth_version' => 1])->actingAs($target->fresh())
+        ->get(route('profile.show'))
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('status');
+});
+
+it('invalidates an already open session after an administrator deactivates that account', function (): void {
+    $admin = stageNineAdmin();
+    $target = User::factory()->create(['must_change_password' => false, 'auth_version' => 1]);
+
+    $this->actingAs($admin)->post(route('admin.users.deactivate', $target))->assertRedirect(route('admin.users.index'));
+    expect($target->fresh()->is_active)->toBeFalse()
+        ->and($target->fresh()->auth_version)->toBe(2);
+
+    $this->withSession(['auth_version' => 1])->actingAs($target->fresh())
+        ->get(route('profile.show'))
+        ->assertRedirect(route('login'))
+        ->assertSessionHas('status');
+});
+
+it('rejects authenticated sessions that have no account version marker', function (): void {
+    $user = User::factory()->create(['must_change_password' => false])->fresh();
+
+    $this->withSession([])->actingAs($user);
+    expect($user->auth_version)->toBe(1)
+        ->and(session()->has('auth_version'))->toBeFalse();
+
+    $this->get(route('profile.show'))
+        ->assertRedirect(route('login'));
+});
+
+it('shows a users own profile and only that users login history', function (): void {
+    $user = User::factory()->create(['must_change_password' => false]);
+    $other = User::factory()->create(['must_change_password' => false]);
+    $user->activityLogs()->create(['role' => 'mahasiswa', 'action' => 'login', 'created_at' => now()]);
+    $other->activityLogs()->create(['role' => 'mahasiswa', 'action' => 'login', 'ip_address' => '203.0.113.2', 'created_at' => now()]);
+    $this->actingAs($user)->get(route('profile.show'))->assertOk()->assertSee($user->user_code)->assertSee('Aktivitas login terakhir');
+});
+
+it('previews csv account imports and creates valid student rows without overwriting existing accounts', function (): void {
+    $admin = stageNineAdmin();
+    $existing = User::factory()->create(['user_code' => 'MHS-EXIST', 'name' => 'Nama Lama']);
+    Storage::fake('local');
+    $file = UploadedFile::fake()->createWithContent('accounts.csv', "user_code,name,unit_or_prodi\nMHS-EXIST,Nama Baru,TRPL\nMHS-NEW,Baru,TRPL\n");
+
+    $this->actingAs($admin)->post(route('admin.users.import.preview'), ['file' => $file])
+        ->assertOk()->assertSee('sudah ada')->assertSee('Siap diimpor');
+    $this->post(route('admin.users.import.commit'), ['confirm' => '1'])->assertRedirect(route('admin.users.index'));
+    expect($existing->fresh()->name)->toBe('Nama Lama')
+        ->and(User::query()->where('user_code', 'MHS-NEW')->value('must_change_password'))->toBeTrue()
+        ->and(count(session('temporary_credentials')))->toBe(1);
+});
+
+it('imports student study program, NIM, and cohort from the updated CSV template', function (): void {
+    $admin = stageNineAdmin();
+    $file = UploadedFile::fake()->createWithContent(
+        'students.csv',
+        "user_code,name,unit_or_prodi,nim,angkatan\nMHS-NEW-DATA,Mahasiswa Data,Media grafis,20260010,2026\n",
+    );
+
+    $this->actingAs($admin)->post(route('admin.users.import.preview'), ['file' => $file])
+        ->assertOk()
+        ->assertSee('20260010')
+        ->assertSee('Siap diimpor');
+    $this->post(route('admin.users.import.commit'), ['confirm' => '1'])
+        ->assertRedirect(route('admin.users.index'));
+
+    $student = User::query()->where('user_code', 'MHS-NEW-DATA')->firstOrFail();
+    expect($student->unit_or_prodi)->toBe('Media grafis')
+        ->and($student->nim)->toBe('20260010')
+        ->and($student->angkatan)->toBe(2026);
+});
+
+it('previews XLSX workbooks using the documented first-sheet template columns', function (): void {
+    $path = tempnam(sys_get_temp_dir(), 'idn-care-xlsx-');
+    $zip = new ZipArchive;
+    $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('xl/sharedStrings.xml', '<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>user_code</t></si><si><t>name</t></si><si><t>unit_or_prodi</t></si><si><t>MHS-XLSX</t></si><si><t>Mahasiswa XLSX</t></si><si><t>TRPL</t></si></sst>');
+    $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row><row r="2"><c r="A2" t="s"><v>3</v></c><c r="B2" t="s"><v>4</v></c><c r="C2" t="s"><v>5</v></c></row></sheetData></worksheet>');
+    $zip->close();
+    $reader = new ReflectionMethod(UserImportController::class, 'readXlsx');
+    expect($reader->invoke(new UserImportController, $path))->toBe([
+        ['user_code', 'name', 'unit_or_prodi'], ['MHS-XLSX', 'Mahasiswa XLSX', 'TRPL'],
+    ]);
+    $file = new UploadedFile($path, 'accounts.xlsx', 'application/zip', null, true);
+    $response = $this->actingAs(stageNineAdmin())->post(route('admin.users.import.preview'), ['file' => $file]);
+    $response->assertOk()->assertSee('MHS-XLSX')->assertSee('Mahasiswa XLSX')->assertSee('Siap diimpor');
+    unlink($path);
+});
+
+it('downloads an XLSX template that can be uploaded back for preview', function (): void {
+    $admin = stageNineAdmin();
+    $template = $this->actingAs($admin)->get(route('admin.users.template'))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    $path = tempnam(sys_get_temp_dir(), 'idn-care-template-test-');
+    file_put_contents($path, $template->getContent());
+    $file = new UploadedFile($path, 'template.xlsx', 'application/zip', null, true);
+    $this->post(route('admin.users.import.preview'), ['file' => $file])
+        ->assertOk()->assertSee('Tidak ada baris akun');
+    unlink($path);
+});
+
+it('archives selected reports in two steps without deleting their rows or attachments', function (): void {
+    Storage::fake('local');
+    $admin = stageNineAdmin();
+    $reporter = User::factory()->create(['must_change_password' => false]);
+    $report = stageNineReport($reporter);
+    $report->attachments()->create(['file_path' => 'reports/private.jpg', 'kind' => 'before']);
+    $this->actingAs($admin)->get(route('admin.archive.index'))->assertOk();
+    $period = ['academic_year' => '2025/2026', 'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString()];
+    $previewResponse = $this->post(route('admin.archive.store'), $period)->assertRedirect()->assertSessionHas('archive_preview');
+    $preview = $previewResponse->getSession()->get('archive_preview');
+    expect($preview['count'])->toBe(1);
+    $this->post(route('admin.archive.store'), [...$period, 'confirm' => '1', 'confirmation_key' => $preview['key'], 'preview_count' => 1])
+        ->assertRedirect(route('admin.archive.index'));
+    expect(Report::query()->whereKey($report->id)->exists())->toBeFalse()
+        ->and(Report::withoutGlobalScope('active')->whereKey($report->id)->value('academic_year'))->toBe('2025/2026')
+        ->and($report->attachments()->count())->toBe(1)
+        ->and($admin->activityLogs()->where('action', 'reports_archived')->exists())->toBeTrue();
+});
+
+it('serves archived attachments only after normal report policy authorization', function (): void {
+    Storage::fake('local');
+    Storage::disk('local')->put('reports/archived.jpg', 'private-image');
+    $admin = stageNineAdmin();
+    $reporter = User::factory()->create(['must_change_password' => false]);
+    $report = stageNineReport($reporter);
+    $report->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
+    $attachment = $report->attachments()->create(['file_path' => 'reports/archived.jpg', 'kind' => 'before']);
+
+    $this->actingAs($admin)->get(route('attachments.show', $attachment))->assertOk()->assertSee('private-image');
+
+    $assignedUnitAdmin = User::factory()->create([
+        'role' => UserRole::ADMIN_KEMAHASISWAAN,
+        'must_change_password' => false,
+    ])->fresh();
+    $this->withSession(['auth_version' => $assignedUnitAdmin->auth_version])->actingAs($assignedUnitAdmin)
+        ->get(route('attachments.show', $attachment))->assertOk()->assertSee('private-image');
+
+    $wrongUnitAdmin = User::factory()->create([
+        'role' => UserRole::ADMIN_SARPRAS,
+        'must_change_password' => false,
+    ])->fresh();
+    $this->withSession(['auth_version' => $wrongUnitAdmin->auth_version])->actingAs($wrongUnitAdmin)
+        ->get(route('attachments.show', $attachment))->assertForbidden();
+});
+
+it('lets students view their own archived reports and attachments without enabling changes', function (): void {
+    Storage::fake('local');
+    config(['app.report_key' => str_repeat('a', 64)]);
+    $owner = User::factory()->create(['must_change_password' => false]);
+    $other = User::factory()->create(['must_change_password' => false]);
+
+    $archived = stageNineReport($owner);
+    $archived->forceFill([
+        'archived_at' => now(),
+        'academic_year' => '2025/2026',
+        'status' => Report::STATUS_SELESAI,
+        'completed_at' => now()->subDays(8),
+    ])->save();
+    Storage::disk('local')->put('reports/student-archive.jpg', 'private-archive-image');
+    $attachment = $archived->attachments()->create(['file_path' => 'reports/student-archive.jpg', 'kind' => 'after']);
+
+    $otherArchived = stageNineReport($other);
+    $otherArchived->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
+
+    $this->actingAs($owner)->get(route('reports.index'))
+        ->assertOk()->assertSee($archived->ticket_no)->assertSee('Diarsipkan');
+    $this->get(route('reports.show', $archived->id))
+        ->assertOk()->assertSee('Detail dan lampiran tetap tersedia untuk pemilik laporan');
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('private-archive-image');
+    $this->get(route('reports.show', $otherArchived->id))->assertNotFound();
+
+    // Archived reports are read-only even when still awaiting student confirmation.
+    $this->post(route('reports.confirm', $archived->id))->assertNotFound();
+});
+
+it('uses the anonymous HMAC owner check for archived student report and attachment access', function (): void {
+    Storage::fake('local');
+    config(['app.report_key' => str_repeat('b', 64)]);
+    $owner = User::factory()->create(['must_change_password' => false]);
+    $other = User::factory()->create(['must_change_password' => false]);
+    $type = ReportType::firstOrCreate(['code' => ReportType::PELANGGARAN], ['name' => 'Pelanggaran']);
+    $category = Category::query()->create(['report_type_id' => $type->id, 'name' => 'Etika', 'is_active' => true]);
+    $anonymous = Report::query()->create([
+        'ticket_no' => 'IDN-ANON-ARCHIVE-1',
+        'reporter_id' => null,
+        'reporter_token' => Report::reporterTokenFor($owner),
+        'report_type_id' => $type->id,
+        'category_id' => $category->id,
+        'title' => 'Laporan anonim terarsip',
+        'description' => 'Uraian uji tanpa data pribadi.',
+        'assigned_unit' => ReportType::UNIT_KEMAHASISWAAN,
+        'is_anonymous' => true,
+        'archived_at' => now(),
+        'academic_year' => '2025/2026',
+    ]);
+    Storage::disk('local')->put('reports/anonymous-archive.jpg', 'anonymous-private-image');
+    $attachment = $anonymous->attachments()->create(['file_path' => 'reports/anonymous-archive.jpg', 'kind' => 'evidence']);
+
+    $this->actingAs($owner)->get(route('reports.show', $anonymous->id))
+        ->assertOk()->assertSee('Laporan anonim terarsip')->assertDontSee($owner->name);
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('anonymous-private-image');
+    $this->actingAs($other)->get(route('reports.show', $anonymous->id))->assertNotFound();
+    $this->get(route('attachments.show', $attachment))->assertForbidden();
+});
+
+it('prevents unit admins from accessing archive management', function (): void {
+    $unitAdmin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
+    $this->actingAs($unitAdmin)->get(route('admin.archive.index'))->assertForbidden();
+});
+
+it('creates in-app status notifications for identified reporters and none for anonymous violations', function (): void {
+    $reporter = User::factory()->create(['must_change_password' => false]);
+    $admin = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
+    $report = stageNineReport($reporter);
+    app(ReportStatusService::class)->update($report, $admin, ['status' => Report::STATUS_DIVERIFIKASI]);
+    expect($reporter->notifications()->count())->toBe(1);
+    $notification = $reporter->notifications()->firstOrFail();
+    expect($notification->data)->toMatchArray(['report_id' => $report->id, 'status' => Report::STATUS_DIVERIFIKASI])
+        ->and(json_encode($notification->data))->not->toContain($reporter->user_code);
+
+    $otherStudent = User::factory()->create(['must_change_password' => false])->fresh();
+    $this->withSession(['auth_version' => $otherStudent->auth_version])->actingAs($otherStudent)
+        ->get(route('notifications.index'))
+        ->assertOk()->assertDontSee($report->ticket_no);
+    $this->post(route('notifications.read', $notification->id))->assertNotFound();
+
+    $anonymousReport = stageNineReport($reporter);
+    $anonymousReport->forceFill(['reporter_id' => null, 'reporter_token' => hash('sha256', 'private-token')])->save();
+    app(ReportStatusService::class)->update($anonymousReport, $admin, ['status' => Report::STATUS_DIVERIFIKASI]);
+    expect($reporter->notifications()->count())->toBe(1);
+});
+
+it('sends only redacted report details to Groq and returns three structured Indonesian title suggestions', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::response([
+        'choices' => [['message' => ['content' => json_encode(['titles' => [
+            'Lampu lorong rusak', 'Perbaikan lampu gedung', 'Lampu kampus perlu diperiksa',
+        ]])]]],
+    ])]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key', 'services.groq.model' => 'groq-test-model']);
+
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    $this->actingAs($student)->postJson(route('ai.title'), [
+        'type' => 'fasilitas', 'description' => 'Lampu rusak. Nama saya Budi, NIM: 2026123456, hubungi mahasiswa@example.com atau 081234567890.', 'reporter_id' => 900,
+    ])->assertOk()->assertJsonCount(3, 'titles');
+
+    Http::assertSent(function (Request $request): bool {
+        $userMessage = $request['messages'][1]['content'] ?? '';
+        $schema = $request['response_format']['json_schema'] ?? [];
+
+        return $request->url() === 'https://api.groq.com/openai/v1/chat/completions'
+            && $request->hasHeader('Authorization', 'Bearer test-key')
+            && $request['model'] === 'groq-test-model'
+            && $request['messages'][0]['role'] === 'system'
+            && $request['response_format']['type'] === 'json_schema'
+            && $schema['strict'] === true
+            && $schema['schema']['properties']['titles']['minItems'] === 3
+            && $schema['schema']['properties']['titles']['maxItems'] === 3
+            && str_contains($userMessage, 'Jenis laporan: fasilitas')
+            && str_contains($userMessage, '[email disamarkan]')
+            && str_contains($userMessage, '[nomor telepon disamarkan]')
+            && str_contains($userMessage, '[data pribadi disamarkan]')
+            && ! str_contains($userMessage, 'reporter_id')
+            && ! str_contains($userMessage, 'Budi')
+            && ! str_contains($userMessage, '2026123456')
+            && ! str_contains($userMessage, 'mahasiswa@example.com');
+    });
+});
+
+it('rejects invalid, incomplete, duplicate, and overlong Groq titles', function (array $titles): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::response([
+        'choices' => [['message' => ['content' => json_encode(['titles' => $titles])]]],
+    ])]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+
+    expect(app(GroqTitleSuggestionService::class)->suggest('aspirasi', 'Deskripsi contoh cukup panjang.'))->toBe([]);
+})->with([
+    'incomplete' => [['Judul satu', 'Judul dua']],
+    'duplicate' => [['Judul sama', 'Judul sama', 'Judul lain']],
+    'empty' => [['Judul satu', '  ', 'Judul tiga']],
+    'overlong' => [[str_repeat('a', 151), 'Judul dua', 'Judul tiga']],
+]);
+
+it('rejects malformed Groq JSON output', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::response([
+        'choices' => [['message' => ['content' => '{not-json']]],
+    ])]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+
+    expect(app(GroqTitleSuggestionService::class)->suggest('aspirasi', 'Deskripsi contoh cukup panjang.'))->toBe([]);
+});
+
+it('validates the report type and description before calling Groq', function (): void {
+    Http::preventStrayRequests();
+    Http::fake();
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+
+    $this->actingAs($student)->postJson(route('ai.title'), [
+        'type' => 'unknown', 'description' => 'pendek',
+    ])->assertUnprocessable()->assertJsonValidationErrors(['type', 'description']);
+
+    Http::assertNothingSent();
+});
+
+it('throttles title suggestion requests at ten per minute', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::response([
+        'choices' => [['message' => ['content' => json_encode(['titles' => ['Judul satu', 'Judul dua', 'Judul tiga']])]]],
+    ])]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        $this->actingAs($student)->postJson(route('ai.title'), [
+            'type' => 'aspirasi', 'description' => 'Usulan peningkatan fasilitas kampus.',
+        ])->assertOk();
+    }
+
+    $this->postJson(route('ai.title'), [
+        'type' => 'aspirasi', 'description' => 'Usulan peningkatan fasilitas kampus.',
+    ])->assertTooManyRequests();
+
+    Http::assertSentCount(10);
+});
+
+it('returns an empty fallback when Groq times out', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::failedConnection('cURL error 28: Operation timed out')]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+
+    expect(app(GroqTitleSuggestionService::class)->suggest('aspirasi', 'Deskripsi dummy tanpa data pribadi.'))->toBe([]);
+});
+
+it('shows an Indonesian timeout fallback for the title suggestion request', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::failedConnection('cURL error 28: Operation timed out')]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+
+    $this->actingAs($student)->postJson(route('ai.title'), [
+        'type' => 'aspirasi', 'description' => 'Deskripsi dummy yang cukup panjang.',
+    ])->assertStatus(503)->assertJsonPath(
+        'message',
+        'Layanan saran judul merespons terlalu lama. Kamu tetap bisa menulis judul dan mengirim laporan.',
+    );
+});
+
+it('returns Indonesian fallbacks for Groq authentication, quota, and provider errors', function (int $status, string $message, int $expectedStatus): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::response(['error' => ['message' => 'sensitive provider details']], $status)]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+
+    $this->actingAs($student)->postJson(route('ai.title'), [
+        'type' => 'aspirasi', 'description' => 'Deskripsi dummy yang cukup panjang.',
+    ])->assertStatus($expectedStatus)->assertJsonPath('titles', [])->assertJsonPath('message', $message);
+})->with([
+    'unauthorized' => [401, 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.', 503],
+    'forbidden' => [403, 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.', 503],
+    'quota' => [429, 'Kuota layanan saran judul sedang terbatas. Coba lagi nanti atau tulis judul secara manual.', 429],
+    'provider error' => [502, 'Saran AI tidak tersedia saat ini. Kamu tetap bisa menulis judul dan mengirim laporan.', 503],
+]);
+
+it('provides a safe Groq Artisan diagnostic without printing the configured key', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::response([], 503)]);
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'diagnostic-test-key']);
+
+    $exitCode = Artisan::call('groq:diagnose-titles');
+    $output = Artisan::output();
+
+    expect($exitCode)->toBe(1)
+        ->and($output)->toContain('HTTP: 503 | kategori: http_error')
+        ->and($output)->toContain('jumlah_judul: 0')
+        ->and($output)->not->toContain('diagnostic-test-key');
+});
+
+it('rejects unsafe Groq diagnostic timeout values without making a provider request', function (): void {
+    Http::preventStrayRequests();
+    Http::fake();
+
+    expect(Artisan::call('groq:diagnose-titles', ['--timeout' => '61']))->toBe(1)
+        ->and(Artisan::output())->toContain('antara 1 dan 60 detik');
+
+    Http::assertNothingSent();
+});
+
+it('does not call Groq when title suggestions are disabled or the key is unavailable', function (bool $enabled, ?string $key): void {
+    Http::preventStrayRequests();
+    Http::fake();
+    config(['services.groq.enabled' => $enabled, 'services.groq.key' => $key]);
+
+    expect(app(GroqTitleSuggestionService::class)->suggest('aspirasi', 'Deskripsi dummy tanpa data pribadi.'))->toBe([]);
+
+    Http::assertNothingSent();
+})->with([
+    'disabled' => [false, 'test-key'],
+    'key unavailable' => [true, null],
+]);
+
+it('logs only sanitized Groq connection diagnostics', function (): void {
+    Http::preventStrayRequests();
+    Http::fake(['api.groq.com/*' => Http::failedConnection(
+        'cURL error 6: Could not resolve host: api.groq.com; sensitive prompt and API key must not be logged',
+    )]);
+    Log::spy();
+    config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
+
+    expect(app(GroqTitleSuggestionService::class)
+        ->suggest('aspirasi', 'Dummy description that must not appear in logs.'))->toBe([]);
+
+    Log::shouldHaveReceived('warning')->once()->withArgs(function (string $message, array $context): bool {
+        return $message === 'Groq title suggestions could not connect.'
+            && $context['failure_type'] === 'dns'
+            && $context['curl_code'] === 6
+            && ! str_contains(json_encode($context), 'sensitive prompt')
+            && ! str_contains(json_encode($context), 'test-key');
+    });
+});
+
+it('renders a students report list and detail with the ticket_no database column', function (): void {
+    config(['app.report_key' => str_repeat('t', 64)]);
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    $report = stageNineReport($student);
+
+    $this->withSession(['auth_version' => $student->auth_version])->actingAs($student)
+        ->get(route('reports.index'))
+        ->assertOk()
+        ->assertSee($report->ticket_no);
+
+    $this->get(route('reports.show', $report))
+        ->assertOk()
+        ->assertSee($report->ticket_no);
+});
+
+it('keeps the students report list available when the anonymous ownership key needs restoration', function (): void {
+    config(['app.report_key' => null]);
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    $report = stageNineReport($student);
+
+    $this->withSession(['auth_version' => $student->auth_version])->actingAs($student)
+        ->get(route('reports.index'))
+        ->assertOk()
+        ->assertSee($report->ticket_no);
+});

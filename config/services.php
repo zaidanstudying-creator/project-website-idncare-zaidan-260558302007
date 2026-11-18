@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'groq' => [
+        'enabled' => env('AI_TITLE_ENABLED', false),
+        'key' => env('GROQ_API_KEY'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
+        'endpoint' => 'https://api.groq.com/openai/v1',
+    ],
+
 ];

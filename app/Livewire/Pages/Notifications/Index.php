@@ -16,7 +16,8 @@ class Index extends Component
     {
         $notification = auth()->user()->notifications()->whereKey($notificationId)->firstOrFail();
         $notification->markAsRead();
-        session()->flash('status', 'Notifikasi ditandai sudah dibaca.');
+        $this->dispatch('notification-count-updated', count: auth()->user()->unreadNotifications()->count());
+        $this->dispatch('app-notification', message: 'Notifikasi ditandai sudah dibaca.', type: 'success');
     }
 
     public function render(): View

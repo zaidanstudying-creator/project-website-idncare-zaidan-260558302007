@@ -3,6 +3,7 @@
 use App\Console\Commands\CreateSuperAdmin;
 use App\Console\Commands\DiagnoseGroqTitleSuggestions;
 use App\Http\Middleware\ForcePasswordChange;
+use App\Http\Middleware\MaintenancePage;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\ValidateAccountSession;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+        $middleware->web(append: [MaintenancePage::class]);
         $middleware->alias([
             'force.password.change' => ForcePasswordChange::class,
             'role' => RoleMiddleware::class,

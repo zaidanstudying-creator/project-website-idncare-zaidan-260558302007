@@ -88,7 +88,7 @@ class UserTable extends Component
             $logs->record(auth()->user(), 'user_password_reset', $user, [], ['must_change_password' => true]);
         });
 
-        session()->flash('status', 'Password direset. Salin password awal sekarang.');
+        $this->dispatch('app-notification', message: 'Password direset. Salin password awal sekarang.', type: 'success');
         $this->dispatch('credentials-ready', userCode: $user->user_code, password: $password);
     }
 
@@ -104,7 +104,7 @@ class UserTable extends Component
                 ['is_active' => $wasActive], ['is_active' => ! $wasActive]);
         });
 
-        session()->flash('status', $wasActive ? 'Akun dinonaktifkan.' : 'Akun berhasil diaktifkan kembali.');
+        $this->dispatch('app-notification', message: $wasActive ? 'Akun dinonaktifkan.' : 'Akun berhasil diaktifkan kembali.', type: 'success');
     }
 
     public function render()

@@ -18,7 +18,8 @@ it('opens the account management page for a super admin', function (): void {
         ->get(route('admin.users.index'))
         ->assertOk()
         ->assertSee('Daftar akun')
-        ->assertSee('Cari ID atau nama');
+        ->assertSee('Cari ID atau nama')
+        ->assertSee('idn-loading-spinner');
 });
 
 it('lets super admins search and filter accounts without leaving the account page', function (): void {

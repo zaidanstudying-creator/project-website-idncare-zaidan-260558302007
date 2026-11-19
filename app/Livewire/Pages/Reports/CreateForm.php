@@ -5,8 +5,11 @@ namespace App\Livewire\Pages\Reports;
 use App\Enums\UserRole;
 use App\Models\Location;
 use App\Models\ReportType;
+use App\Models\SiteSetting;
+use App\Services\GroqTitleSuggestionService;
 use App\Services\ReportSubmissionService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
@@ -25,6 +28,11 @@ class CreateForm extends Component
     public string $title = '';
 
     public string $description = '';
+
+    /** @var array<int, string> */
+    public array $titleSuggestions = [];
+
+    public string $titleSuggestionMessage = 'Saran AI opsional; judul tetap bisa ditulis manual.';
 
     public string $categoryId = '';
 
@@ -45,11 +53,60 @@ class CreateForm extends Component
     {
         abort_unless(auth()->user()?->role === UserRole::MAHASISWA, 403);
         ReportType::query()->where('code', $type)->firstOrFail();
+        abort_unless(SiteSetting::isReportTypeEnabled($type), 404);
         $this->typeCode = $type;
+
+        if ($type === ReportType::PELANGGARAN) {
+            $this->requestedVisibility = '';
+        }
+    }
+
+    public function suggestTitles(GroqTitleSuggestionService $groq): void
+    {
+        $data = $this->validate([
+            'description' => ['required', 'string', 'min:10', 'max:10000'],
+        ]);
+        $key = 'report-title:'.auth()->id();
+
+        if (RateLimiter::tooManyAttempts($key, 10)) {
+            $this->titleSuggestions = [];
+            $this->titleSuggestionMessage = 'Kuota layanan saran judul sedang terbatas. Coba lagi nanti atau tulis judul secara manual.';
+
+            return;
+        }
+
+        RateLimiter::hit($key, 60);
+        $titles = $groq->suggest($this->typeCode, $data['description']);
+        $diagnostics = $groq->diagnostics();
+        $status = $diagnostics['http_status'] ?? null;
+        $rateLimited = $status === 429;
+        $authenticationFailed = in_array($status, [401, 403], true);
+        $timedOut = ($diagnostics['failure_type'] ?? null) === 'timeout';
+
+        $this->titleSuggestions = count($titles) === 3 ? $titles : [];
+        $this->titleSuggestionMessage = $this->titleSuggestions !== []
+            ? 'Pilih saran untuk mengisi judul, lalu periksa sebelum mengirim.'
+            : ($rateLimited
+                ? 'Kuota layanan saran judul sedang terbatas. Coba lagi nanti atau tulis judul secara manual.'
+                : ($authenticationFailed
+                    ? 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.'
+                    : ($timedOut
+                        ? 'Layanan saran judul merespons terlalu lama. Kamu tetap bisa menulis judul dan mengirim laporan.'
+                        : 'Saran AI tidak tersedia saat ini. Kamu tetap bisa menulis judul dan mengirim laporan.')));
+    }
+
+    public function selectSuggestedTitle(string $title): void
+    {
+        $validated = validator(['title' => $title], [
+            'title' => ['required', 'string', 'max:150', Rule::in($this->titleSuggestions)],
+        ])->validate();
+
+        $this->title = $validated['title'];
     }
 
     public function submit(ReportSubmissionService $submission): void
     {
+        abort_unless(SiteSetting::isReportTypeEnabled($this->typeCode), 404);
         $reportType = ReportType::query()->where('code', $this->typeCode)->firstOrFail();
         $isFacility = $reportType->code === ReportType::FACILITAS;
         $isViolation = $reportType->code === ReportType::PELANGGARAN;

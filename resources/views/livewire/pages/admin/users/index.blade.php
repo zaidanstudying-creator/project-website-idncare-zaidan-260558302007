@@ -48,7 +48,7 @@
 </dialog>
 @endif
 <livewire:components.admin.user-table />
-<section class="mt-6 rounded-[28px] bg-white p-5 shadow-sm sm:p-7"><div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-xl font-bold">Impor dari Excel</h2><p class="mt-2 text-sm text-slate-600">Template baru memuat user_code, name, unit_or_prodi, nim, dan angkatan. Pilihan prodi: Teknologi rekayasa perangkat lunak, Komputer jaringan, atau Media grafis. Format lama tetap diterima. Berkas .xlsx atau CSV ditinjau sebelum disimpan; akun yang sudah ada tidak akan ditimpa.</p></div><a href="{{ route('admin.users.template') }}" class="rounded-full border border-[#0B5FFF] px-4 py-2 text-sm font-semibold text-[#0B5FFF]">Unduh template</a></div>
+<section class="mt-6 rounded-[28px] bg-white p-5 shadow-sm sm:p-7"><div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-xl font-bold">Impor dari Excel</h2><p class="mt-2 text-sm text-slate-600">Template baru memuat user_code, name, unit_or_prodi, nim, dan angkatan. Pilihan prodi: Teknologi rekayasa perangkat lunak, Komputer jaringan, atau Media grafis. Format lama tetap diterima. Berkas .xlsx atau CSV ditinjau sebelum disimpan; akun yang sudah ada tidak akan ditimpa.</p></div><a href="{{ route('admin.users.import') }}" class="rounded-full border border-[#0B5FFF] px-4 py-2 text-sm font-semibold text-[#0B5FFF]">Buka impor dan unduh template</a></div>
     <a href="{{ route('admin.users.import') }}" class="mt-4 inline-flex rounded-full bg-[#0A1F44] px-5 py-3 text-sm font-bold text-white">Buka impor dan pratinjau</a>
 </section>
 </div>

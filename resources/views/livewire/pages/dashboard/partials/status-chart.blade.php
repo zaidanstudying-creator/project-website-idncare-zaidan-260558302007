@@ -4,7 +4,7 @@
     </div>
     <ul class="status-composition-legend" aria-label="Legenda status laporan">
         @foreach($analytics['status']['labels'] as $index => $label)
-            <li><span class="status-composition-swatch status-composition-swatch-{{ $index }}" aria-hidden="true"></span>{{ $label }}</li>
+            <li><span class="status-composition-swatch status-composition-swatch-{{ $index }}" aria-hidden="true"></span><span class="status-composition-label">{{ $label }}</span></li>
         @endforeach
     </ul>
 </div>

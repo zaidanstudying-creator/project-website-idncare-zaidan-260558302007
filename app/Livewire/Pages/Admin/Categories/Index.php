@@ -56,7 +56,7 @@ class Index extends Component
 
         $this->reset(['newReportTypeId', 'newName']);
         $this->resetPage();
-        session()->flash('status', 'Kategori berhasil ditambahkan.');
+        $this->dispatch('app-notification', message: 'Kategori berhasil ditambahkan.', type: 'success');
     }
 
     public function updateCategory(int $categoryId, ActivityLogService $logs): void
@@ -78,7 +78,7 @@ class Index extends Component
             ]);
         });
 
-        session()->flash('status', 'Kategori berhasil diperbarui.');
+        $this->dispatch('app-notification', message: 'Kategori berhasil diperbarui.', type: 'success');
     }
 
     public function deleteCategory(int $categoryId, ActivityLogService $logs): void
@@ -97,9 +97,9 @@ class Index extends Component
             return true;
         });
 
-        session()->flash($deleted ? 'status' : 'error', $deleted
+        $this->dispatch('app-notification', message: $deleted
             ? 'Kategori berhasil dihapus.'
-            : 'Kategori yang sudah dipakai laporan tidak dapat dihapus; nonaktifkan kategori.');
+            : 'Kategori yang sudah dipakai laporan tidak dapat dihapus; nonaktifkan kategori.', type: $deleted ? 'success' : 'error');
         $this->resetPage();
     }
 

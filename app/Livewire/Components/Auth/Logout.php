@@ -13,8 +13,8 @@ class Logout extends Component
     {
         $activityLogs->record(auth()->user(), 'logout');
         Auth::logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
+        session()->invalidate();
+        session()->regenerateToken();
         $this->redirectRoute('login', navigate: false);
     }
 

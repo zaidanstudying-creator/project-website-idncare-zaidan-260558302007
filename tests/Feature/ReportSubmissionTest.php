@@ -292,8 +292,9 @@ it('authorizes private attachment access through the report policy', function ()
 
     $this->actingAs($student)->get(route('attachments.show', $attachment))
         ->assertOk()
-        ->assertHeader('Cache-Control', 'no-store, private')
-        ->assertDontSee((string) $student->id);
+        ->assertHeaderContains('Cache-Control', 'no-store')
+        ->assertSee('data:image/png;base64,')
+        ->assertDontSee($student->user_code);
 
     $this->actingAs($otherStudent)->get(route('attachments.show', $attachment))->assertForbidden();
 

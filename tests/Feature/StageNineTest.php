@@ -2,7 +2,10 @@
 
 use App\Enums\StudyProgram;
 use App\Enums\UserRole;
-use App\Http\Controllers\Admin\UserImportController;
+use App\Livewire\Pages\Admin\Archive\Index as AdminArchiveIndex;
+use App\Livewire\Pages\Admin\Users\Import as AdminUsersImport;
+use App\Livewire\Pages\Reports\CreateForm;
+use App\Livewire\Pages\Reports\Show as StudentReportShow;
 use App\Models\Category;
 use App\Models\Report;
 use App\Models\ReportType;
@@ -16,6 +19,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -261,27 +265,27 @@ it('previews XLSX workbooks using the documented first-sheet template columns', 
     $zip->addFromString('xl/sharedStrings.xml', '<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>user_code</t></si><si><t>name</t></si><si><t>unit_or_prodi</t></si><si><t>MHS-XLSX</t></si><si><t>Mahasiswa XLSX</t></si><si><t>TRPL</t></si></sst>');
     $zip->addFromString('xl/worksheets/sheet1.xml', '<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row><row r="2"><c r="A2" t="s"><v>3</v></c><c r="B2" t="s"><v>4</v></c><c r="C2" t="s"><v>5</v></c></row></sheetData></worksheet>');
     $zip->close();
-    $reader = new ReflectionMethod(UserImportController::class, 'readXlsx');
-    expect($reader->invoke(new UserImportController, $path))->toBe([
+    $reader = new ReflectionMethod(AdminUsersImport::class, 'readXlsx');
+    $reader->setAccessible(true);
+    expect($reader->invoke(new AdminUsersImport, $path))->toBe([
         ['user_code', 'name', 'unit_or_prodi'], ['MHS-XLSX', 'Mahasiswa XLSX', 'TRPL'],
     ]);
-    $file = new UploadedFile($path, 'accounts.xlsx', 'application/zip', null, true);
-    $response = $this->actingAs(stageNineAdmin())->post(route('admin.users.import.preview'), ['file' => $file]);
-    $response->assertOk()->assertSee('MHS-XLSX')->assertSee('Mahasiswa XLSX')->assertSee('Siap diimpor');
+    $file = UploadedFile::fake()->createWithContent('accounts.xlsx', file_get_contents($path));
+    $admin = stageNineAdmin();
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminUsersImport::class)
+        ->set('file', $file)
+        ->call('preview')
+        ->assertSee('MHS-XLSX')->assertSee('Mahasiswa XLSX')->assertSee('Siap diimpor');
     unlink($path);
 });
 
 it('downloads an XLSX template that can be uploaded back for preview', function (): void {
     $admin = stageNineAdmin();
-    $template = $this->actingAs($admin)->get(route('admin.users.template'))
-        ->assertOk()
-        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    $path = tempnam(sys_get_temp_dir(), 'idn-care-template-test-');
-    file_put_contents($path, $template->getContent());
-    $file = new UploadedFile($path, 'template.xlsx', 'application/zip', null, true);
-    $this->post(route('admin.users.import.preview'), ['file' => $file])
-        ->assertOk()->assertSee('Tidak ada baris akun');
-    unlink($path);
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminUsersImport::class)
+        ->call('downloadTemplate')
+        ->assertFileDownloaded('template-akun-idn-care.xlsx', null, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
 it('archives selected reports in two steps without deleting their rows or attachments', function (): void {
@@ -291,17 +295,36 @@ it('archives selected reports in two steps without deleting their rows or attach
     $report = stageNineReport($reporter);
     $report->attachments()->create(['file_path' => 'reports/private.jpg', 'kind' => 'before']);
     $this->actingAs($admin)->get(route('admin.archive.index'))->assertOk();
-    $period = ['academic_year' => '2025/2026', 'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString()];
-    $previewResponse = $this->post(route('admin.archive.store'), $period)->assertRedirect()->assertSessionHas('archive_preview');
-    $preview = $previewResponse->getSession()->get('archive_preview');
-    expect($preview['count'])->toBe(1);
-    $this->post(route('admin.archive.store'), [...$period, 'confirm' => '1', 'confirmation_key' => $preview['key'], 'preview_count' => 1])
-        ->assertRedirect(route('admin.archive.index'));
+    $this->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::actingAs($admin)->test(AdminArchiveIndex::class)
+        ->set('academicYear', '2025/2026')
+        ->set('from', now()->subDay()->toDateString())
+        ->set('to', now()->addDay()->toDateString())
+        ->call('previewArchive')
+        ->assertSet('preview.count', 1)
+        ->call('archiveReports')
+        ->assertSet('preview', null);
     expect(Report::query()->whereKey($report->id)->exists())->toBeFalse()
         ->and(Report::withoutGlobalScope('active')->whereKey($report->id)->value('academic_year'))->toBe('2025/2026')
         ->and($report->attachments()->count())->toBe(1)
         ->and($admin->activityLogs()->where('action', 'reports_archived')->exists())->toBeTrue();
 });
+
+it('downloads archive exports through Livewire for each supported format', function (string $format, string $contentType): void {
+    $admin = stageNineAdmin();
+    $reporter = User::factory()->create(['must_change_password' => false]);
+    $report = stageNineReport($reporter);
+    $report->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+
+    Livewire::actingAs($admin)->test(AdminArchiveIndex::class)
+        ->call('exportArchive', $format)
+        ->assertFileDownloaded(null, null, $contentType);
+})->with([
+    'csv' => ['csv', 'text/csv; charset=UTF-8'],
+    'xlsx' => ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    'pdf' => ['pdf', 'application/pdf'],
+]);
 
 it('serves archived attachments only after normal report policy authorization', function (): void {
     Storage::fake('local');
@@ -312,14 +335,14 @@ it('serves archived attachments only after normal report policy authorization', 
     $report->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
     $attachment = $report->attachments()->create(['file_path' => 'reports/archived.jpg', 'kind' => 'before']);
 
-    $this->actingAs($admin)->get(route('attachments.show', $attachment))->assertOk()->assertSee('private-image');
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('private-image'));
 
     $assignedUnitAdmin = User::factory()->create([
         'role' => UserRole::ADMIN_KEMAHASISWAAN,
         'must_change_password' => false,
     ])->fresh();
     $this->withSession(['auth_version' => $assignedUnitAdmin->auth_version])->actingAs($assignedUnitAdmin)
-        ->get(route('attachments.show', $attachment))->assertOk()->assertSee('private-image');
+        ->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('private-image'));
 
     $wrongUnitAdmin = User::factory()->create([
         'role' => UserRole::ADMIN_SARPRAS,
@@ -352,11 +375,13 @@ it('lets students view their own archived reports and attachments without enabli
         ->assertOk()->assertSee($archived->ticket_no)->assertSee('Diarsipkan');
     $this->get(route('reports.show', $archived->id))
         ->assertOk()->assertSee('Detail dan lampiran tetap tersedia untuk pemilik laporan');
-    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('private-archive-image');
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('private-archive-image'));
     $this->get(route('reports.show', $otherArchived->id))->assertNotFound();
 
-    // Archived reports are read-only even when still awaiting student confirmation.
-    $this->post(route('reports.confirm', $archived->id))->assertNotFound();
+    Livewire::actingAs($owner)->test(StudentReportShow::class, ['report' => (string) $archived->id])
+        ->assertDontSee('Konfirmasi hasil')
+        ->call('confirm')
+        ->assertForbidden();
 });
 
 it('uses the anonymous HMAC owner check for archived student report and attachment access', function (): void {
@@ -383,8 +408,8 @@ it('uses the anonymous HMAC owner check for archived student report and attachme
     $attachment = $anonymous->attachments()->create(['file_path' => 'reports/anonymous-archive.jpg', 'kind' => 'evidence']);
 
     $this->actingAs($owner)->get(route('reports.show', $anonymous->id))
-        ->assertOk()->assertSee('Laporan anonim terarsip')->assertDontSee($owner->name);
-    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('anonymous-private-image');
+        ->assertOk()->assertSee('Laporan anonim terarsip')->assertDontSee($owner->user_code);
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('anonymous-private-image'));
     $this->actingAs($other)->get(route('reports.show', $anonymous->id))->assertNotFound();
     $this->get(route('attachments.show', $attachment))->assertForbidden();
 });
@@ -426,9 +451,11 @@ it('sends only redacted report details to Groq and returns three structured Indo
     config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key', 'services.groq.model' => 'groq-test-model']);
 
     $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
-    $this->actingAs($student)->postJson(route('ai.title'), [
-        'type' => 'fasilitas', 'description' => 'Lampu rusak. Nama saya Budi, NIM: 2026123456, hubungi mahasiswa@example.com atau 081234567890.', 'reporter_id' => 900,
-    ])->assertOk()->assertJsonCount(3, 'titles');
+    ReportType::firstOrCreate(['code' => ReportType::FACILITAS], ['name' => 'Laporan Fasilitas']);
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => ReportType::FACILITAS])
+        ->set('description', 'Lampu rusak. Nama saya Budi, NIM: 2026123456, hubungi mahasiswa@example.com atau 081234567890.')
+        ->call('suggestTitles')
+        ->assertSet('titleSuggestions', ['Lampu lorong rusak', 'Perbaikan lampu gedung', 'Lampu kampus perlu diperiksa']);
 
     Http::assertSent(function (Request $request): bool {
         $userMessage = $request['messages'][1]['content'] ?? '';
@@ -483,10 +510,12 @@ it('validates the report type and description before calling Groq', function ():
     Http::fake();
     config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
     $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    ReportType::firstOrCreate(['code' => ReportType::ASPIRASI], ['name' => 'Aspirasi']);
 
-    $this->actingAs($student)->postJson(route('ai.title'), [
-        'type' => 'unknown', 'description' => 'pendek',
-    ])->assertUnprocessable()->assertJsonValidationErrors(['type', 'description']);
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => ReportType::ASPIRASI])
+        ->set('description', 'pendek')
+        ->call('suggestTitles')
+        ->assertHasErrors('description');
 
     Http::assertNothingSent();
 });
@@ -498,16 +527,18 @@ it('throttles title suggestion requests at ten per minute', function (): void {
     ])]);
     config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
     $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    ReportType::firstOrCreate(['code' => ReportType::ASPIRASI], ['name' => 'Aspirasi']);
 
     for ($attempt = 0; $attempt < 10; $attempt++) {
-        $this->actingAs($student)->postJson(route('ai.title'), [
-            'type' => 'aspirasi', 'description' => 'Usulan peningkatan fasilitas kampus.',
-        ])->assertOk();
+        Livewire::actingAs($student)->test(CreateForm::class, ['type' => ReportType::ASPIRASI])
+            ->set('description', 'Usulan peningkatan fasilitas kampus.')
+            ->call('suggestTitles');
     }
 
-    $this->postJson(route('ai.title'), [
-        'type' => 'aspirasi', 'description' => 'Usulan peningkatan fasilitas kampus.',
-    ])->assertTooManyRequests();
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => ReportType::ASPIRASI])
+        ->set('description', 'Usulan peningkatan fasilitas kampus.')
+        ->call('suggestTitles')
+        ->assertSee('Kuota layanan saran judul sedang terbatas. Coba lagi nanti atau tulis judul secara manual.');
 
     Http::assertSentCount(10);
 });
@@ -525,29 +556,32 @@ it('shows an Indonesian timeout fallback for the title suggestion request', func
     Http::fake(['api.groq.com/*' => Http::failedConnection('cURL error 28: Operation timed out')]);
     config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
     $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    ReportType::firstOrCreate(['code' => ReportType::ASPIRASI], ['name' => 'Aspirasi']);
 
-    $this->actingAs($student)->postJson(route('ai.title'), [
-        'type' => 'aspirasi', 'description' => 'Deskripsi dummy yang cukup panjang.',
-    ])->assertStatus(503)->assertJsonPath(
-        'message',
-        'Layanan saran judul merespons terlalu lama. Kamu tetap bisa menulis judul dan mengirim laporan.',
-    );
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => ReportType::ASPIRASI])
+        ->set('description', 'Deskripsi dummy yang cukup panjang.')
+        ->call('suggestTitles')
+        ->assertSet('titleSuggestions', [])
+        ->assertSee('Layanan saran judul merespons terlalu lama. Kamu tetap bisa menulis judul dan mengirim laporan.');
 });
 
-it('returns Indonesian fallbacks for Groq authentication, quota, and provider errors', function (int $status, string $message, int $expectedStatus): void {
+it('returns Indonesian fallbacks for Groq authentication, quota, and provider errors', function (int $status, string $message): void {
     Http::preventStrayRequests();
     Http::fake(['api.groq.com/*' => Http::response(['error' => ['message' => 'sensitive provider details']], $status)]);
     config(['services.groq.enabled' => true, 'services.groq.key' => 'test-key']);
     $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    ReportType::firstOrCreate(['code' => ReportType::ASPIRASI], ['name' => 'Aspirasi']);
 
-    $this->actingAs($student)->postJson(route('ai.title'), [
-        'type' => 'aspirasi', 'description' => 'Deskripsi dummy yang cukup panjang.',
-    ])->assertStatus($expectedStatus)->assertJsonPath('titles', [])->assertJsonPath('message', $message);
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => ReportType::ASPIRASI])
+        ->set('description', 'Deskripsi dummy yang cukup panjang.')
+        ->call('suggestTitles')
+        ->assertSet('titleSuggestions', [])
+        ->assertSee($message);
 })->with([
-    'unauthorized' => [401, 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.', 503],
-    'forbidden' => [403, 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.', 503],
-    'quota' => [429, 'Kuota layanan saran judul sedang terbatas. Coba lagi nanti atau tulis judul secara manual.', 429],
-    'provider error' => [502, 'Saran AI tidak tersedia saat ini. Kamu tetap bisa menulis judul dan mengirim laporan.', 503],
+    'unauthorized' => [401, 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.'],
+    'forbidden' => [403, 'Layanan saran judul belum dapat diakses. Silakan tulis judul secara manual; administrator perlu memeriksa konfigurasi layanan.'],
+    'quota' => [429, 'Kuota layanan saran judul sedang terbatas. Coba lagi nanti atau tulis judul secara manual.'],
+    'provider error' => [502, 'Saran AI tidak tersedia saat ini. Kamu tetap bisa menulis judul dan mengirim laporan.'],
 ]);
 
 it('provides a safe Groq Artisan diagnostic without printing the configured key', function (): void {

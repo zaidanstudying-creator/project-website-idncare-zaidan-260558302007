@@ -39,8 +39,8 @@ class PasswordChange extends Component
                 ['must_change_password' => $mustChangePassword], ['must_change_password' => false]);
         });
 
-        request()->session()->regenerate();
-        $this->redirectIntended(route('dashboard'), navigate: false);
+        session()->regenerate();
+        $this->redirectRoute('dashboard', navigate: false);
     }
 
     public function render(): View

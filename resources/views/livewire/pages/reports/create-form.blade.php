@@ -42,10 +42,10 @@
                     <input id="title" wire:model="title" maxlength="150" required class="{{ $inputClass }}" placeholder="Tulis judul laporan singkat" @if ($errors->has('title')) aria-invalid="true" aria-describedby="title-error" @endif>
                     @error('title')<p id="title-error" class="field-error">{{ $message }}</p>@enderror
                     <div class="mt-2 flex flex-wrap items-center gap-3">
-                        <button type="button" data-ai-title-button data-endpoint="{{ route('ai.title') }}" data-type="{{ $reportType->code }}" class="rounded-full border border-[#0B5FFF] px-4 py-2 text-xs font-bold text-[#0B5FFF] hover:bg-blue-50">Buat 3 saran judul</button>
-                        <span data-ai-title-status role="status" aria-live="polite" aria-atomic="true" class="text-xs text-slate-500">Saran AI opsional; judul tetap bisa ditulis manual.</span>
+                        <button type="button" wire:click="suggestTitles" wire:loading.attr="disabled" wire:target="suggestTitles" class="rounded-full border border-[#0B5FFF] px-4 py-2 text-xs font-bold text-[#0B5FFF] hover:bg-blue-50 disabled:opacity-60"><span wire:loading.remove wire:target="suggestTitles">Buat 3 saran judul</span><span wire:loading wire:target="suggestTitles">Memuat saran…</span></button>
+                        <span role="status" aria-live="polite" aria-atomic="true" class="text-xs text-slate-500">{{ $titleSuggestionMessage }}</span>
                     </div>
-                    <div data-ai-title-options class="mt-2 flex flex-wrap gap-2"></div>
+                    <div class="mt-2 flex flex-wrap gap-2">@foreach ($titleSuggestions as $suggestion)<button type="button" wire:key="title-suggestion-{{ $loop->index }}" wire:click="selectSuggestedTitle({{ Illuminate\Support\Js::from($suggestion) }})" class="rounded-full bg-blue-50 px-4 py-2 text-left text-xs font-semibold text-[#0B5FFF] hover:bg-blue-100">{{ $suggestion }}</button>@endforeach</div>
                 </div>
 
                 @if ($isViolation)

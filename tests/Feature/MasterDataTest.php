@@ -1,12 +1,15 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Pages\Admin\Categories\Index as AdminCategoriesIndex;
+use App\Livewire\Pages\Admin\Locations\Index as AdminLocationsIndex;
 use App\Models\Category;
 use App\Models\Location;
 use App\Models\Report;
 use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -30,6 +33,20 @@ it('requires authentication and redirects students away from master data', funct
 
     $this->actingAs($student)->get(route('admin.categories.index'))->assertForbidden();
     $this->get(route('admin.locations.index'))->assertForbidden();
+});
+
+it('renders the location management page for authorized staff', function (): void {
+    $admin = User::factory()->create([
+        'role' => UserRole::ADMIN_SARPRAS,
+        'must_change_password' => false,
+    ]);
+
+    $this->actingAs($admin)
+        ->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.locations.index'))
+        ->assertOk()
+        ->assertSee('Tambah lokasi')
+        ->assertSee('Daftar lokasi');
 });
 
 it('requires a password change before an account can use master data', function (): void {
@@ -69,26 +86,22 @@ it('limits category management to the report types assigned to each unit', funct
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($sarpras)->get(route('admin.categories.index'))
-        ->assertOk()
+    Livewire::actingAs($sarpras)->test(AdminCategoriesIndex::class)
         ->assertSee('Listrik')
         ->assertDontSee('Akademik')
         ->assertDontSee('Keamanan');
-    $this->actingAs($kemahasiswaan)->get(route('admin.categories.index'))
-        ->assertOk()
+    Livewire::actingAs($kemahasiswaan)->test(AdminCategoriesIndex::class)
         ->assertDontSee('Listrik')
         ->assertSee('Akademik')
         ->assertSee('Keamanan');
 
-    $this->actingAs($sarpras)->put(route('admin.categories.update', $aspirationCategory), [
-        'name' => 'Akademik diubah',
-        'is_active' => true,
-    ])->assertForbidden();
+    Livewire::actingAs($sarpras)->test(AdminCategoriesIndex::class)
+        ->call('updateCategory', $aspirationCategory->id)
+        ->assertForbidden();
 
-    $this->actingAs($kemahasiswaan)->put(route('admin.categories.update', $facilityCategory), [
-        'name' => 'Listrik diubah',
-        'is_active' => true,
-    ])->assertForbidden();
+    Livewire::actingAs($kemahasiswaan)->test(AdminCategoriesIndex::class)
+        ->call('updateCategory', $facilityCategory->id)
+        ->assertForbidden();
 
     expect($violationCategory->fresh()->name)->toBe('Keamanan');
 });
@@ -108,25 +121,29 @@ it('lets authorized staff create categories only for their assigned unit', funct
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($sarpras)->post(route('admin.categories.store'), [
-        'report_type_id' => $types[ReportType::FACILITAS]->id,
-        'name' => 'Kebersihan gedung',
-    ])->assertRedirect(route('admin.categories.index'));
+    Livewire::actingAs($sarpras)->test(AdminCategoriesIndex::class)
+        ->set('newReportTypeId', (string) $types[ReportType::FACILITAS]->id)
+        ->set('newName', 'Kebersihan gedung')
+        ->call('createCategory')
+        ->assertHasNoErrors();
 
-    $this->actingAs($sarpras)->post(route('admin.categories.store'), [
-        'report_type_id' => $types[ReportType::ASPIRASI]->id,
-        'name' => 'Aspirasi umum',
-    ])->assertForbidden();
+    Livewire::actingAs($sarpras)->test(AdminCategoriesIndex::class)
+        ->set('newReportTypeId', (string) $types[ReportType::ASPIRASI]->id)
+        ->set('newName', 'Aspirasi umum')
+        ->call('createCategory')
+        ->assertForbidden();
 
-    $this->actingAs($kemahasiswaan)->post(route('admin.categories.store'), [
-        'report_type_id' => $types[ReportType::PELANGGARAN]->id,
-        'name' => 'Etika',
-    ])->assertRedirect(route('admin.categories.index'));
+    Livewire::actingAs($kemahasiswaan)->test(AdminCategoriesIndex::class)
+        ->set('newReportTypeId', (string) $types[ReportType::PELANGGARAN]->id)
+        ->set('newName', 'Etika')
+        ->call('createCategory')
+        ->assertHasNoErrors();
 
-    $this->actingAs($superAdmin)->post(route('admin.categories.store'), [
-        'report_type_id' => $types[ReportType::FACILITAS]->id,
-        'name' => 'Konstruksi',
-    ])->assertRedirect(route('admin.categories.index'));
+    Livewire::actingAs($superAdmin)->test(AdminCategoriesIndex::class)
+        ->set('newReportTypeId', (string) $types[ReportType::FACILITAS]->id)
+        ->set('newName', 'Konstruksi')
+        ->call('createCategory')
+        ->assertHasNoErrors();
 
     $this->assertDatabaseHas('categories', [
         'report_type_id' => $types[ReportType::FACILITAS]->id,
@@ -152,24 +169,27 @@ it('allows both unit admins and super admin to manage locations', function (): v
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($sarpras)->post(route('admin.locations.store'), [
-        'name' => 'Gedung Baru',
-    ])->assertRedirect(route('admin.locations.index'));
+    Livewire::actingAs($sarpras)->test(AdminLocationsIndex::class)
+        ->set('newName', 'Gedung Baru')
+        ->call('createLocation')
+        ->assertHasNoErrors();
 
     $location = Location::query()->where('name', 'Gedung Baru')->firstOrFail();
 
-    $this->actingAs($kemahasiswaan)->put(route('admin.locations.update', $location), [
-        'name' => 'Gedung Baru Timur',
-        'is_active' => true,
-    ])->assertRedirect(route('admin.locations.index'));
+    Livewire::actingAs($kemahasiswaan)->test(AdminLocationsIndex::class)
+        ->set("locationEdits.{$location->id}.name", 'Gedung Baru Timur')
+        ->set("locationEdits.{$location->id}.is_active", true)
+        ->call('updateLocation', $location->id)
+        ->assertHasNoErrors();
 
     $this->actingAs($superAdmin)->get(route('admin.locations.index'))->assertOk();
     $this->actingAs($kemahasiswaan)->get(route('admin.locations.index'))->assertOk();
 
-    $this->actingAs($superAdmin)->put(route('admin.locations.update', $location), [
-        'name' => 'Gedung Baru Utama',
-        'is_active' => false,
-    ])->assertRedirect(route('admin.locations.index'));
+    Livewire::actingAs($superAdmin)->test(AdminLocationsIndex::class)
+        ->set("locationEdits.{$location->id}.name", 'Gedung Baru Utama')
+        ->set("locationEdits.{$location->id}.is_active", false)
+        ->call('updateLocation', $location->id)
+        ->assertHasNoErrors();
 
     expect($location->fresh()->name)->toBe('Gedung Baru Utama')
         ->and($location->fresh()->is_active)->toBeFalse();
@@ -199,14 +219,16 @@ it('deactivates used categories and locations without deleting referenced master
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($admin)->put(route('admin.categories.update', $category), [
-        'name' => 'Plumbing',
-        'is_active' => false,
-    ])->assertRedirect(route('admin.categories.index'));
-    $this->put(route('admin.locations.update', $location), [
-        'name' => 'Gedung Lama',
-        'is_active' => false,
-    ])->assertRedirect(route('admin.locations.index'));
+    Livewire::actingAs($admin)->test(AdminCategoriesIndex::class)
+        ->set("categoryEdits.{$category->id}.name", 'Plumbing')
+        ->set("categoryEdits.{$category->id}.is_active", false)
+        ->call('updateCategory', $category->id)
+        ->assertHasNoErrors();
+    Livewire::actingAs($admin)->test(AdminLocationsIndex::class)
+        ->set("locationEdits.{$location->id}.name", 'Gedung Lama')
+        ->set("locationEdits.{$location->id}.is_active", false)
+        ->call('updateLocation', $location->id)
+        ->assertHasNoErrors();
 
     expect($category->fresh()->is_active)->toBeFalse()
         ->and($location->fresh()->is_active)->toBeFalse()
@@ -223,11 +245,14 @@ it('validates category and location fields before storing', function (): void {
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($admin)->post(route('admin.categories.store'), [
-        'report_type_id' => $types[ReportType::FACILITAS]->id,
-        'name' => str_repeat('a', 151),
-    ])->assertSessionHasErrors('name');
+    Livewire::actingAs($admin)->test(AdminCategoriesIndex::class)
+        ->set('newReportTypeId', (string) $types[ReportType::FACILITAS]->id)
+        ->set('newName', str_repeat('a', 151))
+        ->call('createCategory')
+        ->assertHasErrors('newName');
 
-    $this->post(route('admin.locations.store'), ['name' => ''])
-        ->assertSessionHasErrors('name');
+    Livewire::actingAs($admin)->test(AdminLocationsIndex::class)
+        ->set('newName', '')
+        ->call('createLocation')
+        ->assertHasErrors('newName');
 });

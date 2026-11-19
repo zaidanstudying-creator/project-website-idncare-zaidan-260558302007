@@ -1,9 +1,9 @@
 @if (session('status'))
-    <x-states.success-state>{{ session('status') }}</x-states.success-state>
+    <div hidden data-flash-notification data-type="success">{{ session('status') }}</div>
 @endif
 
 @if (session('error'))
-    <x-states.error-state>{{ session('error') }}</x-states.error-state>
+    <div hidden data-flash-notification data-type="error">{{ session('error') }}</div>
 @endif
 
 @if ($errors->any())

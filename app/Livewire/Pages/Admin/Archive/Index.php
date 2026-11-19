@@ -5,6 +5,7 @@ namespace App\Livewire\Pages\Admin\Archive;
 use App\Enums\UserRole;
 use App\Models\Report;
 use App\Services\ActivityLogService;
+use App\Services\ArchivedReportExportService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -88,12 +89,19 @@ class Index extends Component
         });
 
         $this->preview = null;
-        session()->flash('status', "{$count} laporan diarsipkan. Data dan lampiran tetap tersimpan.");
+        $this->dispatch('app-notification', message: "{$count} laporan diarsipkan. Data dan lampiran tetap tersimpan.", type: 'success');
     }
 
     public function cancelPreview(): void
     {
         $this->preview = null;
+    }
+
+    public function exportArchive(string $format, ArchivedReportExportService $exporter): mixed
+    {
+        abort_unless(in_array($format, ['csv', 'xlsx', 'pdf'], true), 404);
+
+        return $exporter->download($format);
     }
 
     public function render(): View

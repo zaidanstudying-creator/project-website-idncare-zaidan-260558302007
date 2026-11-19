@@ -53,7 +53,7 @@ class Index extends Component
         $report = Report::query()->ownedBy(auth()->user(), includeArchived: true)->findOrFail($reportId);
         Gate::authorize('confirm', $report);
         $lifecycle->confirm($report, auth()->user());
-        session()->flash('status', 'Hasil laporan berhasil dikonfirmasi.');
+        $this->dispatch('app-notification', message: 'Hasil laporan berhasil dikonfirmasi.', type: 'success');
     }
 
     public function render(): View

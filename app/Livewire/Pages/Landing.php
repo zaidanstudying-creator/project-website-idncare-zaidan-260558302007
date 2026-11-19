@@ -4,6 +4,8 @@ namespace App\Livewire\Pages;
 
 use App\Enums\UserRole;
 use App\Models\Report;
+use App\Models\ReportType;
+use App\Models\SiteSetting;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -14,6 +16,11 @@ class Landing extends Component
     public function render(): View
     {
         $user = auth()->user();
+        $enabledReportTypes = SiteSetting::current()?->reportTypeAvailability() ?? [
+            ReportType::FACILITAS => true,
+            ReportType::ASPIRASI => true,
+            ReportType::PELANGGARAN => true,
+        ];
         $publicReports = Report::query()->public();
 
         if (in_array($user?->role, [UserRole::ADMIN_SARPRAS, UserRole::ADMIN_KEMAHASISWAAN], true)) {
@@ -40,6 +47,6 @@ class Landing extends Component
             ];
         }
 
-        return view('livewire.pages.landing', compact('user', 'latestReports', 'landingSummary'))->title('Suarakan, laporkan, pantau');
+        return view('livewire.pages.landing', compact('user', 'latestReports', 'landingSummary', 'enabledReportTypes'))->title('Suarakan, laporkan, pantau');
     }
 }

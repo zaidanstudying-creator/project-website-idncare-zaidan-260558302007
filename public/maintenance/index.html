@@ -33,8 +33,6 @@
       } catch {}
     </script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
       :root {
         color-scheme: light dark;
         font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
@@ -45,6 +43,7 @@
         -webkit-font-smoothing: antialiased;
         --blue: #0b5fff;
         --cyan: #22d3ee;
+      --amber: #f4b942;
       }
 
       * { box-sizing: border-box; }
@@ -54,58 +53,69 @@
       .brand strong { color: var(--blue); }
       .brand-mark { display: grid; width: 40px; aspect-ratio: 1; place-items: center; border-radius: 13px; color: white; background: linear-gradient(135deg, var(--blue), #1aa7e8); box-shadow: 0 7px 18px rgb(11 95 255 / 22%); }
       .brand-mark svg { width: 26px; }
-      .message { display: grid; grid-template-columns: 1.02fr .98fr; align-items: center; gap: 30px; min-height: 490px; padding: 4px 0 0; }
-      .message-copy { position: relative; z-index: 1; padding: 25px 0 30px; }
+      .message { display: grid; grid-template-columns: 1.02fr .98fr; align-items: center; gap: 30px; padding: 10px 0 0; }
+      .message-copy { position: relative; z-index: 1; padding: 16px 0 20px; }
       .eyebrow { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 21px; padding: 9px 13px; border: 1px solid #dce9ff; border-radius: 999px; color: #31517c; background: #f5f9ff; font-size: 12px; font-weight: 700; letter-spacing: .02em; }
       .status-dot { width: 8px; aspect-ratio: 1; border-radius: 50%; background: #18b978; box-shadow: 0 0 0 4px #dff8ed; }
       h1 { margin: 0; color: #0a1f44; font-size: clamp(38px, 5vw, 58px); line-height: 1.12; letter-spacing: -.055em; }
       h1 span { color: var(--blue); }
       .description { max-width: 445px; margin: 22px 0 0; color: #61728e; font-size: 15px; line-height: 1.85; }
-      .coming-soon { display: flex; align-items: center; gap: 10px; margin: 23px 0 22px; color: #138abf; font-size: 11px; font-weight: 800; letter-spacing: .19em; }
-      .coming-soon span { color: #20bdd9; font-size: 16px; }
-      .cat-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-      .wiggle-button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 9px; padding: 0 18px; border: 0; border-radius: 999px; color: white; background: linear-gradient(135deg, #0b5fff, #1aa7e8); box-shadow: 0 10px 20px rgb(11 95 255 / 20%); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: transform 180ms ease, box-shadow 180ms ease; }
-      .feed-button { color: #0a1f44; background: #fff; box-shadow: inset 0 0 0 1px #d9e7fb; }
-      .wiggle-button:hover { transform: translateY(-2px); box-shadow: 0 13px 25px rgb(11 95 255 / 28%); }
-      .wiggle-button:active { transform: translateY(0) scale(.98); }
-      .wiggle-button:focus-visible { outline: 3px solid #22d3ee; outline-offset: 4px; }
-      .cat-scene { position: relative; display: grid; min-height: 370px; margin: 0; place-items: center; isolation: isolate; }
-      .cat-scene::before { position: absolute; z-index: -1; width: min(90%, 360px); aspect-ratio: 1; border: 1px solid #e6f0ff; border-radius: 50%; background: radial-gradient(circle, #f0f8ff 0, #f7fbff 64%, transparent 65%); content: ''; }
-      .cat { position: relative; z-index: 1; width: min(100%, 370px); overflow: visible; }
-      .food-bowl { position: absolute; z-index: 2; right: 10%; bottom: 42px; display: grid; width: 68px; height: 48px; place-items: center; border-radius: 12px 12px 22px 22px; color: #fff; background: linear-gradient(180deg, #22d3ee 0 25%, #0b5fff 26%); box-shadow: 0 9px 16px rgb(10 31 68 / 15%); font-size: 22px; opacity: 0; scale: .7; }
-      .food-bowl::before { position: absolute; top: -5px; width: 74px; height: 12px; border: 3px solid #0a1f44; border-radius: 50%; background: #fff; content: ''; }
-      .food-bowl svg { position: relative; z-index: 1; width: 34px; height: 26px; }
-      .cat-scene.is-fed .food-bowl { opacity: 1; scale: 1; }
-      .fish-flight { position: absolute; z-index: 4; right: calc(10% + 17px); bottom: 86px; width: 38px; height: 30px; opacity: 0; pointer-events: none; }
-      .fish-flight svg { width: 100%; height: 100%; overflow: visible; }
-      .fish-body { fill: #ffbd59; stroke: #0a1f44; stroke-width: 2.5; stroke-linejoin: round; }
-      .fish-detail { fill: none; stroke: #fff; stroke-linecap: round; stroke-width: 2; }
-      .fish-eye { fill: #0a1f44; }
-      .feed-heart { position: absolute; z-index: 3; top: 18%; right: 22%; color: #ff7794; font-size: 30px; opacity: 0; }
-      .cat-shadow { fill: #d8e7fa; }
-      .tail,.paw,.whiskers { fill: none; stroke: #0a1f44; stroke-linecap: round; stroke-linejoin: round; stroke-width: 6; }
-      .body,.head { fill: #0b5fff; stroke: #0a1f44; stroke-linejoin: round; stroke-width: 5; }
-      .body-mark { fill: none; stroke: #7dddf4; stroke-linecap: round; stroke-width: 8; }
-      .inner-ear { fill: #ffb9bf; }
-      .muzzle { fill: #fff; }
-      .nose { fill: #ff8f9d; }
-      .eye { fill: none; stroke: #0a1f44; stroke-linecap: round; stroke-width: 5; }
-      .collar { fill: none; stroke: #22d3ee; stroke-linecap: round; stroke-width: 9; }
-      .bell { fill: #ffd166; stroke: #fff; stroke-width: 2; }
-      .orbit { position: absolute; border: 1px dashed #bfd7ff; border-radius: 50%; }
-      .orbit-one { width: 330px; height: 230px; transform: rotate(-17deg); }
-      .orbit-two { width: 270px; height: 340px; transform: rotate(24deg); }
-      .spark { position: absolute; color: #20bdd9; }
-      .spark-one { top: 42px; right: 55px; font-size: 30px; }
-      .spark-two { bottom: 79px; left: 28px; color: #ffbd59; font-size: 39px; }
-      figcaption { position: absolute; bottom: 3px; color: #72819a; font-size: 11px; text-align: center; }
+      .coming-soon { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0 0; color: #138abf; font-size: 11px; font-weight: 800; letter-spacing: .18em; }
+      .coming-soon-mark { color: #20bdd9; font-size: 14px; letter-spacing: 0; }
+      .construction-scene { position: relative; display: grid; min-height: 370px; margin: 0; place-items: center; isolation: isolate; }
+      .construction-scene::before { position: absolute; z-index: -1; width: min(94%, 420px); aspect-ratio: 1; border: 1px solid #e6f0ff; border-radius: 50%; background: radial-gradient(circle, #f0f8ff 0, #f7fbff 64%, transparent 65%); content: ''; }
+      .construction-art { position: relative; z-index: 1; width: min(100%, 460px); overflow: visible; }
+      .scene-shadow { fill: #d8e7fa; }
+      .building-shell { fill: #dceaff; stroke: #0a1f44; stroke-width: 4; stroke-linejoin: round; }
+      .building-side { fill: #c4d9f5; stroke: #0a1f44; stroke-width: 4; stroke-linejoin: round; }
+      .building-floor { fill: none; stroke: #91add2; stroke-width: 3; }
+      .building-window { fill: #fff; stroke: #7ca4dc; stroke-width: 2; }
+      .building-window.is-lit { fill: #ffd166; }
+      .scaffold { fill: none; stroke: #20bdd9; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+      .crane-structure { fill: none; stroke: #0b5fff; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+      .crane-detail { fill: none; stroke: #1aa7e8; stroke-width: 3; stroke-linecap: round; }
+      .crane-cabin { fill: #22d3ee; stroke: #0a1f44; stroke-width: 3; }
+      .crane-counterweight { fill: #ffbd59; stroke: #0a1f44; stroke-width: 3; }
+      .crane-hook-line { fill: none; stroke: #0a1f44; stroke-width: 3; }
+      .crane-load { transform-box: fill-box; transform-origin: center top; }
+      .load-block { fill: #ffbd59; stroke: #0a1f44; stroke-width: 3; }
+      .load-stripe { fill: none; stroke: #fff4d6; stroke-width: 4; }
+      .site-skyline { fill: #e6edf7; }
+      .site-ground { fill: none; stroke: #8aa0bd; stroke-width: 3; stroke-linecap: round; }
+      .site-bush { fill: #32a878; }
+      .site-barrier { fill: #f7f9fc; stroke: #24364e; stroke-width: 2; }
+      .site-barrier-stripe { fill: none; stroke: #e64c4c; stroke-width: 5; stroke-dasharray: 9 6; }
+      .site-cone { fill: #f1763d; stroke: #17324f; stroke-width: 2; stroke-linejoin: round; }
+      .site-sign { fill: #f5c451; stroke: #17324f; stroke-width: 2; }
+      .site-sign-mark { fill: none; stroke: #17324f; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .vehicle-body { fill: var(--amber); stroke: #0a1f44; stroke-width: 3; stroke-linejoin: round; }
+      .vehicle-trim { fill: #ef9f24; stroke: #0a1f44; stroke-width: 2.5; stroke-linejoin: round; }
+      .vehicle-cabin { fill: #173d6d; stroke: #0a1f44; stroke-width: 3; stroke-linejoin: round; }
+      .vehicle-glass { fill: #79d5ef; stroke: #d6f6ff; stroke-width: 2; }
+      .vehicle-wheel { fill: #24364e; stroke: #0a1f44; stroke-width: 2.5; }
+      .vehicle-hub { fill: #d8e8f6; stroke: #0a1f44; stroke-width: 2; }
+      .vehicle-detail { fill: none; stroke: #0a1f44; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+      .vehicle { transform-box: fill-box; transform-origin: center bottom; }
+      .vehicle-beacon { fill: #ff6b45; stroke: #fff5dc; stroke-width: 1.5; }
+      .vehicle-signal { fill: none; stroke: #f4b942; stroke-width: 2.5; stroke-linecap: round; opacity: 0; }
+      .vehicle-tread { fill: #25354b; stroke: #0a1f44; stroke-width: 2.5; }
+      .vehicle-tread-mark { fill: none; stroke: #8aa0bd; stroke-width: 2; stroke-linecap: round; }
+      .dozer-blade, .loader-boom { transform-box: fill-box; transform-origin: 0 50%; }
+      .worker-body { fill: #0b5fff; stroke: #0a1f44; stroke-width: 2.5; stroke-linejoin: round; }
+      .worker-vest { fill: var(--amber); }
+      .worker-skin { fill: #d89468; stroke: #0a1f44; stroke-width: 1.8; }
+      .worker-pants { fill: #263b58; stroke: #0a1f44; stroke-width: 2; stroke-linejoin: round; }
+      .worker-helmet { fill: #f5c451; stroke: #0a1f44; stroke-width: 2; }
+      .worker-walk { transform-box: fill-box; transform-origin: center bottom; }
+      .worker-leg, .worker-arm { transform-box: fill-box; transform-origin: top center; }
+      .worker-point-arm { transform-box: fill-box; transform-origin: 0 100%; }
+      .worker-point-mark { fill: none; stroke: #22b8d2; stroke-width: 2; stroke-dasharray: 4 5; stroke-linecap: round; }
       .footer { display: flex; align-items: center; justify-content: center; gap: 15px; color: #8290a7; font-size: 11px; }
       .footer p { margin: 0; }
       .footer p span { color: #f27b9b; }
       .footer-line { width: min(11vw, 90px); height: 1px; background: #e4ebf5; }
       .sr-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
-      .maintenance { position: relative; }
       .maintenance { position: relative; }
       .maintenance-theme-switch { position: absolute; z-index: 5; top: 22px; right: 25px; width: 78px; height: 42px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border: 1px solid #e1e7f0; border-radius: 999px; background: #f1f4f8; }
       .maintenance-theme-switch button { display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; color: #8792a3; background: transparent; cursor: pointer; transition: color .2s ease, background .2s ease, transform .2s ease; }
@@ -123,11 +133,41 @@
       html[data-theme="dark"] h1 span { color: #8db8ff; }
       html[data-theme="dark"] .description { color: #bdcadb; }
       html[data-theme="dark"] .coming-soon { color: #7fdcf1; }
-      html[data-theme="dark"] .feed-button { color: #e5edf9; background: #24334a; box-shadow: inset 0 0 0 1px #40536f; }
-      html[data-theme="dark"] .cat-scene::before { border-color: #344862; background: radial-gradient(circle, #243953 0, #1c2c43 64%, transparent 65%); }
-      html[data-theme="dark"] .cat-shadow { fill: #0d1726; }
-      html[data-theme="dark"] .orbit { border-color: #405776; }
-      html[data-theme="dark"] figcaption { color: #a9b8cc; }
+      html[data-theme="dark"] .construction-scene::before { border-color: #344862; background: radial-gradient(circle, #243953 0, #1c2c43 64%, transparent 65%); }
+      html[data-theme="dark"] .scene-shadow { fill: #0d1726; }
+      html[data-theme="dark"] .building-shell { fill: #2b405c; stroke: #9bb8df; }
+      html[data-theme="dark"] .building-side { fill: #223650; stroke: #9bb8df; }
+      html[data-theme="dark"] .building-floor { stroke: #6783a9; }
+      html[data-theme="dark"] .building-window { fill: #203958; stroke: #88a9d4; }
+      html[data-theme="dark"] .building-window.is-lit { fill: #ffd166; }
+      html[data-theme="dark"] .crane-structure { stroke: #78a8ff; }
+      html[data-theme="dark"] .crane-detail { stroke: #50d8ee; }
+      html[data-theme="dark"] .crane-cabin { fill: #22d3ee; stroke: #10213b; }
+      html[data-theme="dark"] .crane-counterweight,
+      html[data-theme="dark"] .load-block { stroke: #10213b; }
+      html[data-theme="dark"] .crane-hook-line { stroke: #c7d9f2; }
+      html[data-theme="dark"] .site-skyline { fill: #202f44; }
+      html[data-theme="dark"] .site-ground { stroke: #7187a5; }
+      html[data-theme="dark"] .site-bush { fill: #246b5b; }
+      html[data-theme="dark"] .site-barrier { fill: #e8edf6; stroke: #0a1f2f; }
+      html[data-theme="dark"] .site-barrier-stripe { stroke: #d74242; }
+      html[data-theme="dark"] .site-cone { stroke: #0a1f2f; }
+      html[data-theme="dark"] .site-sign { stroke: #0a1f2f; }
+      html[data-theme="dark"] .site-sign-mark { stroke: #0a1f2f; }
+      html[data-theme="dark"] .vehicle-body { stroke: #0a1422; }
+      html[data-theme="dark"] .vehicle-trim { stroke: #0a1422; }
+      html[data-theme="dark"] .vehicle-cabin { fill: #244c78; stroke: #0a1422; }
+      html[data-theme="dark"] .vehicle-glass { fill: #55b9d8; stroke: #d6f6ff; }
+      html[data-theme="dark"] .vehicle-wheel,
+      html[data-theme="dark"] .vehicle-tread { fill: #101a2a; stroke: #526b8b; }
+      html[data-theme="dark"] .vehicle-hub { fill: #9ab4d2; stroke: #101a2a; }
+      html[data-theme="dark"] .vehicle-detail { stroke: #172b45; }
+      html[data-theme="dark"] .vehicle-tread-mark { stroke: #7187a5; }
+      html[data-theme="dark"] .worker-body { stroke: #0a1422; }
+      html[data-theme="dark"] .worker-pants { fill: #354d6b; stroke: #0a1422; }
+      html[data-theme="dark"] .worker-skin { stroke: #0a1422; }
+      html[data-theme="dark"] .worker-helmet { stroke: #0a1422; }
+      html[data-theme="dark"] .worker-point-mark { stroke: #55d6e8; }
       html[data-theme="dark"] .footer { color: #a9b8cc; }
       html[data-theme="dark"] .footer-line { background: #344862; }
       html[data-theme="dark"] .maintenance-theme-switch { border-color: #080b16; background: #080b16; }
@@ -135,29 +175,43 @@
       html[data-theme="dark"] .maintenance-theme-switch button[aria-pressed="true"] { color: #f8faff; background: #29324f; }
 
       @media (prefers-reduced-motion: no-preference) {
-        .cat.is-wiggling { animation: cat-wiggle 1.25s cubic-bezier(.36,.07,.19,.97) both; transform-origin: 52% 82%; }
-        .cat.is-wiggling .tail { animation: tail-swish 1.25s ease-in-out both; transform-box: fill-box; transform-origin: 15% 80%; }
-        .cat.is-wiggling .eye { animation: cat-blink 1.25s ease-in-out both; transform-box: fill-box; transform-origin: center; }
-        .cat.is-eating { animation: cat-eat .95s ease-in-out both; transform-origin: 52% 82%; }
-        .cat.is-eating .tail { animation: tail-swish .95s ease-in-out both; transform-box: fill-box; transform-origin: 15% 80%; }
-        .cat.is-eating .eye { animation: cat-blink .95s ease-in-out both; transform-box: fill-box; transform-origin: center; }
-        .cat.is-eating .mouth { animation: mouth-chew .4s .75s ease-in-out 2; transform-box: fill-box; transform-origin: center top; }
-        .cat-scene.is-fed .food-bowl { animation: bowl-appear .35s ease-out forwards; }
-        .cat-scene.is-fed .fish-flight { animation: fish-to-mouth .85s ease-in forwards; }
-        .cat-scene.is-fed .feed-heart { animation: heart-pop .9s .35s ease-out both; }
+        .vehicle-beacon { animation: beacon-flash .8s ease-in-out infinite alternate; }
+        .vehicle-signal { animation: signal-flash 1.2s ease-out infinite; }
+        .building-window.is-lit { animation: window-glow 3s ease-in-out infinite alternate; }
+        .vehicle-left { animation: vehicle-left-pass 9s ease-in-out infinite alternate; }
+        .vehicle-right { animation: vehicle-right-pass 11s ease-in-out infinite alternate; }
+        .worker-walk { animation: worker-step 1.1s ease-in-out infinite alternate; }
+        .worker-leg-a { animation: walk-leg 0.55s ease-in-out infinite alternate; }
+        .worker-leg-b { animation: walk-leg 0.55s ease-in-out infinite alternate-reverse; }
+        .worker-arm-a { animation: walk-arm 0.55s ease-in-out infinite alternate; }
+        .worker-arm-b { animation: walk-arm 0.55s ease-in-out infinite alternate-reverse; }
+        .worker-point-arm { animation: point-arm 2.2s ease-in-out infinite alternate; }
+        .worker-point-mark { animation: point-pulse 1.4s ease-in-out infinite alternate; }
+        .vehicle-wheel-spin { animation: wheel-turn 2.4s linear infinite; transform-box: fill-box; transform-origin: center; }
+        .dozer-blade { animation: blade-work 2.2s ease-in-out infinite alternate; }
+        .loader-boom { animation: boom-work 3s ease-in-out infinite alternate; }
         .message-copy { animation: arrive .6s ease-out both; }
-        .cat-scene { animation: arrive .75s .12s ease-out both; }
+        .construction-scene { animation: arrive .75s .12s ease-out both; }
       }
 
-      @keyframes cat-wiggle { 0%,100% { rotate: 0deg; } 18% { rotate: -5deg; } 38% { rotate: 5deg; } 58% { rotate: -3deg; } 78% { rotate: 2deg; } }
-      @keyframes tail-swish { 0%,100% { rotate: 0deg; } 30% { rotate: 17deg; } 65% { rotate: -13deg; } }
-      @keyframes cat-blink { 0%,36%,52%,100% { scale: 1 1; } 43% { scale: 1 .12; } }
-      @keyframes cat-eat { 0%,100% { rotate: 0deg; } 25% { translate: 0 8px; rotate: 3deg; } 50% { translate: 0 0; rotate: -2deg; } 75% { translate: 0 6px; rotate: 2deg; } }
-      @keyframes fish-to-mouth { 0% { opacity: 1; translate: 0 0; rotate: 0deg; scale: 1; } 65% { opacity: 1; translate: -105px -108px; rotate: -18deg; scale: .85; } 100% { opacity: 0; translate: -112px -118px; rotate: -28deg; scale: .55; } }
-      @keyframes mouth-chew { 0%,100% { scale: 1 .45; } 50% { scale: 1 1.5; } }
-      @keyframes bowl-appear { from { opacity: 0; scale: .6; translate: 0 12px; } to { opacity: 1; scale: 1; translate: 0 0; } }
-      @keyframes heart-pop { 0% { opacity: 0; scale: .4; translate: 0 10px; } 35% { opacity: 1; scale: 1.15; } 100% { opacity: 0; scale: 1; translate: 0 -28px; } }
+      @keyframes vehicle-left-pass { from { translate: 0 0; } to { translate: 18px 0; } }
+      @keyframes vehicle-right-pass { from { translate: 0 0; } to { translate: -14px 0; } }
+      @keyframes wheel-turn { to { rotate: 360deg; } }
+      @keyframes blade-work { from { rotate: -2deg; } to { rotate: 4deg; } }
+      @keyframes boom-work { from { rotate: -2deg; } to { rotate: 3deg; } }
+      @keyframes worker-step { from { translate: -3px 0; } to { translate: 4px 0; } }
+      @keyframes walk-leg { from { rotate: -13deg; } to { rotate: 13deg; } }
+      @keyframes walk-arm { from { rotate: -17deg; } to { rotate: 17deg; } }
+      @keyframes point-arm { from { rotate: -5deg; } to { rotate: 5deg; } }
+      @keyframes point-pulse { from { opacity: .35; } to { opacity: 1; } }
+      @keyframes beacon-flash { from { fill: #ff6b45; } to { fill: #fff1a6; } }
+      @keyframes signal-flash { 0% { opacity: .85; scale: .7; } 100% { opacity: 0; scale: 1.5; } }
+      @keyframes window-glow { from { opacity: .65; } to { opacity: 1; } }
       @keyframes arrive { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+      }
 
       @media (max-width: 760px) {
         body { padding: 18px 14px; }
@@ -166,18 +220,15 @@
         .message-copy { padding: 16px 0 0; }
         h1 { font-size: clamp(36px, 10vw, 52px); }
         .description { font-size: 14px; }
-        .cat-scene { min-height: 300px; margin-top: -5px; }
-        .cat { width: min(88%, 330px); }
-        .orbit-one { width: 280px; height: 200px; }
-        .orbit-two { width: 230px; height: 290px; }
-        .spark-one { right: 8%; }
-        .spark-two { left: 6%; }
+        .construction-scene { min-height: 300px; margin-top: -5px; }
+        .construction-art { width: min(100%, 390px); }
         .footer { gap: 9px; }
+        figcaption { max-width: 320px; margin-inline: auto; }
       }
 
       @media (max-width: 380px) {
         .maintenance { padding-inline: 19px; }
-        .cat-scene { min-height: 260px; }
+        .construction-scene { min-height: 260px; }
         .footer { font-size: 10px; }
       }
     </style>
@@ -200,64 +251,113 @@
 
       <section class="message">
         <div class="message-copy">
-          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Kami sedang berbenah</p>
-          <h1 id="page-title">Waduh, maaf ya!<br><span>Kami segera kembali.</span></h1>
-          <p class="description">Website IDN CARE sedang maintenance sebentar. Kami lagi merapikan beberapa hal supaya layanan makin nyaman. Tungguin ya!</p>
-          <p class="coming-soon"><span aria-hidden="true">✦</span> COMING SOON <span aria-hidden="true">✦</span></p>
-          <div class="cat-actions">
-            <button class="wiggle-button" id="wiggle-button" type="button">
-              <span aria-hidden="true">🐾</span> Ajak si kucing meliuk
-            </button>
-            <button class="wiggle-button feed-button" id="feed-button" type="button">
-              <span aria-hidden="true">♡</span> Kasih makan si kucing
-            </button>
-          </div>
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Tim kami sedang bekerja</p>
+          <h1 id="page-title">Waduh, maaf ya!<br><span>Situs sedang dibangun.</span></h1>
+          <p class="description">Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.</p>
+          <p class="coming-soon"><span class="coming-soon-mark" aria-hidden="true">✦</span>COMING SOON<span class="coming-soon-mark" aria-hidden="true">✦</span></p>
         </div>
 
-        <figure class="cat-scene" aria-label="Ilustrasi kucing teman IDN yang sedang meliuk">
-          <span class="orbit orbit-one" aria-hidden="true"></span>
-          <span class="orbit orbit-two" aria-hidden="true"></span>
-          <span class="spark spark-one" aria-hidden="true">✦</span>
-          <span class="spark spark-two" aria-hidden="true">✧</span>
-          <span class="feed-heart" aria-hidden="true">♥</span>
-          <svg class="cat" id="cat" viewBox="0 0 360 320" role="img" aria-labelledby="cat-title">
-            <title id="cat-title">Kucing kecil teman IDN</title>
-            <ellipse class="cat-shadow" cx="184" cy="277" rx="108" ry="16"/>
-            <path class="tail" d="M247 218c54 5 74-34 48-58-13-12-31-8-34 7-2 9 4 16 12 16"/>
-            <path class="body" d="M93 231c0-58 34-101 89-101 44 0 78 28 88 71 5 21-5 44-25 52-48 19-112 17-143 2-7-4-9-13-9-24Z"/>
-            <path class="body-mark" d="M126 205c13-18 29-26 48-28"/>
-            <path class="head" d="M92 154 78 94c-2-9 8-16 16-10l39 28c12-4 26-5 39-1l37-30c8-6 18 0 17 10l-8 61c-7 29-31 48-62 49-35 2-61-17-64-47Z"/>
-            <path class="inner-ear" d="m91 103 24 17-14 15-10-32Zm113 1-23 18 15 13 8-31Z"/>
-            <path class="muzzle" d="M127 159c8-13 20-19 34-19s27 7 34 20c-5 19-18 30-34 30s-29-11-34-31Z"/>
-            <path class="nose" d="m156 157 5-4 6 4-5 6-6-6Z"/>
-            <path class="mouth" d="M161 163q-1 7-7 8m7-8q1 7 7 8" fill="none" stroke="#0a1f44" stroke-width="2.5" stroke-linecap="round"/>
-            <path class="whiskers" d="m133 161-31-6m31 15-33 5m91-14 30-7m-30 16 32 6"/>
-            <path class="eye" d="M125 145c5-8 14-8 19 0m33 0c5-8 14-8 19 0"/>
-            <path class="collar" d="M103 185c17 15 41 22 62 21 20 0 39-7 52-20"/>
-            <path class="bell" d="m163 203 7 8-7 8-7-8 7-8Z"/>
-            <path class="paw" d="M118 247c-12 6-15 20-7 27 8 7 21 4 28-5m96-17c13 3 19 14 13 23-6 9-20 8-29 1"/>
+        <figure class="construction-scene" id="construction-scene" aria-label="Ilustrasi crane dan gedung yang sedang dibangun">
+          <svg class="construction-art" viewBox="0 0 500 380" role="img" aria-labelledby="construction-title">
+            <title id="construction-title">Crane mengangkat material di depan gedung yang sedang dibangun</title>
+            <ellipse class="scene-shadow" cx="255" cy="326" rx="190" ry="20"/>
+
+            <path class="site-skyline" d="M0 244h35v-39h21v24h28v-57h25v74h23v-33h29v31h55v-72h22v39h26v-91h27v41h28v-75h35v103h20v-36h35v91h40v-62h31v123H0z" opacity=".72"/>
+            <path class="site-bush" d="M0 300c17-24 31-22 43-3 11-35 34-36 45-3 12-24 28-25 40-3 14-33 38-29 45 2 16-17 32-14 43 8v27H0Zm345 1c14-29 35-29 47-1 10-38 34-39 47-4 11-25 27-27 39-5 8-18 15-20 22-8v37H345z" opacity=".9"/>
+            <path class="site-ground" d="M9 326h482"/>
+
+            <path class="building-side" d="M363 159h32l20 18v126h-52Z"/>
+            <path class="building-shell" d="M224 159h139v144H224z"/>
+            <path class="building-floor" d="M224 207h139M224 255h139"/>
+            <path class="building-window" d="M241 173h28v23h-28zM282 173h28v23h-28zM323 173h24v23h-24z"/>
+            <path class="building-window is-lit" d="M241 221h28v23h-28z"/>
+            <path class="building-window" d="M282 221h28v23h-28zM323 221h24v23h-24zM241 269h28v23h-28zM282 269h28v23h-28z"/>
+            <path class="scaffold" d="M211 151v160m-11-145h171m-171 51h171m-171 51h171m-161-102 42 51m-42 0 42 51m126-102-42 51m42 0-42 51"/>
+            <path class="scaffold" d="M217 311h187"/>
+
+            <path class="crane-structure" d="M171 293V62M153 293h36M171 62h247M171 62 96 39M171 75 118 58"/>
+            <path class="crane-detail" d="M171 62 150 75h42Zm0 22-18 13h36Zm0 22-18 13h36Zm0 22-18 13h36Zm0 22-18 13h36Zm0 22-18 13h36Zm0 22-18 13h36Zm0 22-18 13h36Zm0 22-18 13h36Z"/>
+            <path class="crane-cabin" d="M182 106h29v35h-29z"/>
+            <path class="crane-detail" d="M190 114h13v13h-13zM183 145h30"/>
+            <path class="crane-counterweight" d="M92 38h39v25H92z"/>
+            <path class="crane-detail" d="M238 62 258 43h24l-20 19m35 0 20-19h24l-20 19m35 0 20-19h24l-20 19"/>
+            <g class="crane-hoist">
+              <line class="crane-hook-line crane-cable" id="crane-cable" x1="336" y1="66" x2="336" y2="135"/>
+              <g class="crane-load" id="crane-load">
+                <path class="crane-hook-line" d="M336 135v8m0 0c0 11 17 11 17 0"/>
+                <path class="load-block" d="M322 143h42l-5 38h-32z"/>
+                <path class="load-stripe" d="m328 151 25 22m-1-22-20 22"/>
+              </g>
+            </g>
+
+            <path class="worker-point-mark" d="M238 271c12-8 20-18 22-30"/>
+            <g class="worker-walk" transform="translate(137 0)">
+              <circle class="worker-skin" cx="0" cy="275" r="7"/>
+              <path class="worker-helmet" d="M-9 273q1-10 9-10t9 10Z"/>
+              <path class="worker-body" d="M-9 284q9-5 18 0l4 21h-26z"/>
+              <path class="worker-vest" d="M-4 282h8l4 19h-16z"/>
+              <path class="worker-pants" d="M-11 304h9l-2 14-7 1zm11 0h9l3 15-7-1z"/>
+              <path class="worker-leg worker-leg-a" d="m-9 316-2 7" fill="none" stroke="#263b58" stroke-width="3" stroke-linecap="round"/>
+              <path class="worker-leg worker-leg-b" d="m3 316 4 7" fill="none" stroke="#263b58" stroke-width="3" stroke-linecap="round"/>
+              <path class="worker-arm worker-arm-a" d="m-9 286-8 12 5 5" fill="none" stroke="#d89468" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path class="worker-arm worker-arm-b" d="m9 286 7 12-3 5" fill="none" stroke="#d89468" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </g>
+            <g class="worker-walk worker-pointer" transform="translate(211 0)">
+              <circle class="worker-skin" cx="0" cy="277" r="7"/>
+              <path class="worker-helmet" d="M-9 275q1-10 9-10t9 10Z"/>
+              <path class="worker-body" d="M-9 286q9-5 18 0l4 19h-26z"/>
+              <path class="worker-vest" d="M-4 284h8l4 17h-16z"/>
+              <path class="worker-pants" d="M-11 304h9l-2 14-7 1zm11 0h9l3 15-7-1z"/>
+              <path class="worker-leg worker-leg-a" d="m-9 316-2 7" fill="none" stroke="#263b58" stroke-width="3" stroke-linecap="round"/>
+              <path class="worker-leg worker-leg-b" d="m3 316 4 7" fill="none" stroke="#263b58" stroke-width="3" stroke-linecap="round"/>
+              <path class="worker-arm worker-arm-a" d="m-9 288-8 10 4 5" fill="none" stroke="#d89468" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path class="worker-point-arm" d="m9 288 10-11 15-7" fill="none" stroke="#d89468" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle class="worker-skin" cx="34" cy="270" r="2.5"/>
+            </g>
+
+            <path class="site-cone" d="m116 326 7-19 7 19zM337 326l7-19 7 19z"/>
+            <path class="site-barrier" d="M267 306h54v7h-54zM271 313v12h4v-12m38 0v12h4v-12"/>
+            <path class="site-barrier-stripe" d="M268 309h52"/>
+            <path class="site-sign" d="M431 224h18v22h-18zM434 246l-5 22m17-22 5 22"/>
+            <path class="site-sign-mark" d="m436 240 4-11 4 11zm4-8v4m0 2v.5"/>
+
+            <g class="vehicle vehicle-left">
+              <path class="vehicle-tread" d="M26 313q0-8 10-8h61q10 0 10 9v6q0 9-10 9H36q-10 0-10-9z"/>
+              <path class="vehicle-tread-mark" d="M37 315v10m12-10v10m12-10v10m12-10v10m12-10v10m12-10v10"/>
+              <path class="vehicle-body" d="M31 286h53l14 12v17H29z"/>
+              <path class="vehicle-cabin" d="M39 258h35l8 29H37z"/>
+              <circle class="vehicle-beacon" cx="58" cy="255" r="4"/>
+              <path class="vehicle-signal" d="M27 268q-8 6 0 12m-5-17q-13 11 0 22"/>
+              <path class="vehicle-glass" d="M44 263h12v18H42zm16 0h11l5 18H60z"/>
+              <path class="vehicle-trim" d="M79 291h18v15H79z"/>
+              <path class="vehicle-detail" d="M89 289h8m-51 24h5m-5-22h5"/>
+              <g class="dozer-blade">
+                <path class="vehicle-trim" d="M28 297 12 302l3 8 17-3z"/>
+                <path class="vehicle-body" d="m13 300-8 4 4 16 10-1 2-5-7-2z"/>
+              </g>
+            </g>
+
+            <g class="vehicle vehicle-right">
+              <path class="vehicle-body" d="M382 286h83l19 14v17H378z"/>
+              <path class="vehicle-cabin" d="M411 251h39l8 37h-55z"/>
+              <circle class="vehicle-beacon" cx="431" cy="248" r="4"/>
+              <path class="vehicle-signal" d="M467 266q8 6 0 12m5-17q13 11 0 22"/>
+              <path class="vehicle-glass" d="M416 256h13v25h-16zm18 0h11l5 25h-16z"/>
+              <path class="vehicle-detail" d="M400 289h13m56 1h11m-72-27v12"/>
+              <g class="loader-boom">
+                <path class="vehicle-trim" d="m385 288-15-17-7 5 9 21"/>
+                <path class="vehicle-body" d="m373 272-14 2 7 23 13-2z"/>
+              </g>
+              <g class="vehicle-wheel-spin"><circle class="vehicle-wheel" cx="394" cy="315" r="12"/><path class="vehicle-detail" d="M394 305v20m-9-10h19"/><circle class="vehicle-hub" cx="394" cy="315" r="4"/></g>
+              <g class="vehicle-wheel-spin"><circle class="vehicle-wheel" cx="462" cy="315" r="12"/><path class="vehicle-detail" d="M462 305v20m-9-10h19"/><circle class="vehicle-hub" cx="462" cy="315" r="4"/></g>
+              <path class="vehicle-trim" d="M478 298h11v13h-11z"/>
+            </g>
           </svg>
-          <div class="food-bowl" id="food-bowl" aria-hidden="true">
-            <svg viewBox="0 0 48 34" fill="none">
-              <path class="fish-body" d="M8 17c5-8 15-11 24-5l8-5-2 10 2 10-8-5c-9 6-19 3-24-5Z"/>
-              <path class="fish-detail" d="M18 13c3 2 3 6 0 8m7-9c3 3 3 7 0 10"/>
-              <circle class="fish-eye" cx="13" cy="16" r="1.5"/>
-            </svg>
-          </div>
-          <span class="fish-flight" aria-hidden="true">
-            <svg viewBox="0 0 48 34" fill="none">
-              <path class="fish-body" d="M8 17c5-8 15-11 24-5l8-5-2 10 2 10-8-5c-9 6-19 3-24-5Z"/>
-              <path class="fish-detail" d="M18 13c3 2 3 6 0 8m7-9c3 3 3 7 0 10"/>
-              <circle class="fish-eye" cx="13" cy="16" r="1.5"/>
-            </svg>
-          </span>
-          <figcaption>Teman kecil IDN lagi siap-siap menyambutmu lagi.</figcaption>
         </figure>
       </section>
 
       <footer class="footer"><span class="footer-line" aria-hidden="true"></span><p>Terima kasih sudah menunggu <span aria-hidden="true">♡</span></p><span class="footer-line" aria-hidden="true"></span></footer>
     </main>
-    <p class="sr-status" id="animation-status" aria-live="polite"></p>
     <script>
       const themeChoices = document.querySelectorAll('[data-theme-choice]');
       const syncThemeChoice = () => {
@@ -276,6 +376,49 @@
         } catch {}
         syncThemeChoice();
       }));
+      const craneCable = document.querySelector('#crane-cable');
+      const craneLoad = document.querySelector('#crane-load');
+      const reducedMotionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let craneAnimationFrame = null;
+      let craneAnimationStart = null;
+      const animateCrane = (timestamp) => {
+        craneAnimationFrame = null;
+        if (reducedMotionPreference.matches) {
+          craneCable.setAttribute('y2', '135');
+          craneLoad.removeAttribute('transform');
+          craneAnimationStart = null;
+
+          return;
+        }
+
+        craneAnimationStart ??= timestamp;
+        const progress = ((timestamp - craneAnimationStart) % 7000) / 7000;
+        const drop = (1 - Math.cos(progress * Math.PI * 2)) * 37.5;
+
+        craneCable.setAttribute('y2', String(135 + drop));
+        craneLoad.setAttribute('transform', `translate(0 ${drop})`);
+        craneAnimationFrame = window.requestAnimationFrame(animateCrane);
+      };
+      const syncCraneMotion = () => {
+        if (reducedMotionPreference.matches) {
+          if (craneAnimationFrame !== null) {
+            window.cancelAnimationFrame(craneAnimationFrame);
+            craneAnimationFrame = null;
+          }
+
+          craneCable.setAttribute('y2', '135');
+          craneLoad.removeAttribute('transform');
+          craneAnimationStart = null;
+
+          return;
+        }
+
+        if (craneAnimationFrame === null) {
+          craneAnimationFrame = window.requestAnimationFrame(animateCrane);
+        }
+      };
+      syncCraneMotion();
+      reducedMotionPreference.addEventListener('change', syncCraneMotion);
       syncThemeChoice();
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
         try {
@@ -303,52 +446,6 @@
         } catch {}
       }, 60_000);
 
-      const cat = document.querySelector('#cat');
-      const wiggleButton = document.querySelector('#wiggle-button');
-      const feedButton = document.querySelector('#feed-button');
-      const catScene = document.querySelector('.cat-scene');
-      const animationStatus = document.querySelector('#animation-status');
-      const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-      function wiggleCat() {
-        if (motionPreference.matches) {
-          animationStatus.textContent = 'Terima kasih! Teman IDN ikut menyambutmu.';
-          return;
-        }
-
-        cat.classList.remove('is-wiggling');
-        void cat.getBoundingClientRect();
-        cat.classList.add('is-wiggling');
-        animationStatus.textContent = 'Teman IDN sedang meliuk!';
-      }
-
-      function feedCat() {
-        if (motionPreference.matches) {
-          catScene.classList.add('is-fed');
-          animationStatus.textContent = 'Nyam nyam! Terima kasih sudah memberi makan teman IDN.';
-          return;
-        }
-
-        cat.classList.remove('is-eating');
-        catScene.classList.remove('is-fed');
-        void cat.getBoundingClientRect();
-        cat.classList.add('is-eating');
-        catScene.classList.add('is-fed');
-        animationStatus.textContent = 'Nyam nyam! Si kucing sedang menikmati ikan.';
-      }
-
-      cat.addEventListener('animationend', (event) => {
-        if (event.animationName === 'cat-wiggle') {
-          cat.classList.remove('is-wiggling');
-        }
-      });
-
-      wiggleButton.addEventListener('click', wiggleCat);
-      feedButton.addEventListener('click', feedCat);
-
-      if (!motionPreference.matches) {
-        wiggleCat();
-      }
     </script>
   </body>
 </html>

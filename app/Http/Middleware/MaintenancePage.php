@@ -38,6 +38,7 @@ class MaintenancePage
             'admin.*',
         );
         $isLoginRequest = $request->routeIs('login')
+            || ($request->routeIs('default-livewire.update') && $user === null)
             || ($request->is('livewire/update') && $user === null);
 
         if ($isActiveAdmin || $isProtectedAdminRoute) {
@@ -71,9 +72,10 @@ class MaintenancePage
         $setting = SiteSetting::current();
         $title = e($setting?->maintenance_title ?: 'Waduh, maaf ya!');
         $message = nl2br(e($setting?->maintenance_message ?: 'Website sedang dirawat sebentar. Kami segera kembali.'));
+        $comingSoon = e($setting?->maintenance_coming_soon ?: 'COMING SOON');
         $maintenanceContent = str_replace(
-            ['Waduh, maaf ya!', 'Website IDN CARE sedang maintenance sebentar. Kami lagi merapikan beberapa hal supaya layanan makin nyaman. Tungguin ya!'],
-            [$title, $message],
+            ['Waduh, maaf ya!', 'Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.', 'COMING SOON'],
+            [$title, $message, $comingSoon],
             $maintenanceContent,
         );
 

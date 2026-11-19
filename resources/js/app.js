@@ -142,36 +142,50 @@ const showAppNotification = ({ message, type = 'success' } = {}) => {
     closeButton.type = 'button';
     closeButton.setAttribute('aria-label', 'Tutup notifikasi');
     closeButton.textContent = '×';
+    let autoDismissTimeout;
+    const dismissToast = () => {
+        if (!toast.isConnected || toast.dataset.dismissing === 'true') return;
+
+        toast.dataset.dismissing = 'true';
+        window.clearTimeout(autoDismissTimeout);
+        toast.classList.add('is-dismissing');
+        if (typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) {
+            toast.hidePopover();
+        } else {
+            toast.dataset.toastOpen = 'false';
+        }
+        window.setTimeout(() => {
+            toast.remove();
+            restackNotifications();
+        }, 240);
+    };
+    const pauseAutoDismiss = () => window.clearTimeout(autoDismissTimeout);
+    const resumeAutoDismiss = () => {
+        if (toast.dataset.dismissing !== 'true') {
+            autoDismissTimeout = window.setTimeout(dismissToast, 5000);
+        }
+    };
     if (typeof toast.showPopover === 'function') {
         toast.setAttribute('popover', 'manual');
-        closeButton.setAttribute('popovertarget', notificationId);
-        closeButton.setAttribute('popovertargetaction', 'hide');
-        toast.addEventListener('toggle', (event) => {
-            if (event.newState === 'closed') {
-                window.setTimeout(() => {
-                    toast.remove();
-                    restackNotifications();
-                }, 220);
-            } else {
-                restackNotifications();
-            }
-        });
     } else {
         toast.dataset.toastOpen = 'true';
-        closeButton.addEventListener('click', () => {
-            toast.dataset.toastOpen = 'false';
-            window.setTimeout(() => {
-                toast.remove();
-                restackNotifications();
-            }, 220);
-        });
     }
+    closeButton.addEventListener('click', dismissToast);
+    toast.addEventListener('mouseenter', pauseAutoDismiss);
+    toast.addEventListener('mouseleave', resumeAutoDismiss);
+    toast.addEventListener('focusin', pauseAutoDismiss);
+    toast.addEventListener('focusout', () => {
+        window.setTimeout(() => {
+            if (!toast.contains(document.activeElement)) resumeAutoDismiss();
+        });
+    });
     toast.append(content, closeButton);
     notificationToastContainer.append(toast);
     if (typeof toast.showPopover === 'function') {
         toast.showPopover();
     }
     restackNotifications();
+    resumeAutoDismiss();
     closeButton.addEventListener('click', () => {
         window.setTimeout(() => {
             const nextToast = [...notificationToastContainer.querySelectorAll('.app-notification-toast')]
@@ -186,7 +200,7 @@ const showAppNotification = ({ message, type = 'success' } = {}) => {
             } else if (returnFocus?.isConnected) {
                 returnFocus.focus();
             }
-        }, 220);
+        }, 260);
     }, { once: true });
 };
 
@@ -395,30 +409,45 @@ document.querySelectorAll('dialog[data-dialog-open-on-load]').forEach((dialog) =
         dialog.showModal();
     }
 });
-const userRoleSelect = document.getElementById('role');
-const studentFields = document.querySelector('[data-student-fields]');
-const studentProgramField = document.querySelector('[data-student-program-field]');
-const nonstudentUnitField = document.querySelector('[data-nonstudent-unit-field]');
-const studentProgramSelect = document.querySelector('[data-student-program-select]');
-const nonstudentUnitInput = document.querySelector('[data-nonstudent-unit-input]');
-if (userRoleSelect instanceof HTMLSelectElement && studentFields instanceof HTMLFieldSetElement
-    && studentProgramField instanceof HTMLDivElement && nonstudentUnitField instanceof HTMLDivElement
-    && studentProgramSelect instanceof HTMLSelectElement && nonstudentUnitInput instanceof HTMLInputElement) {
-    const studentRequiredFields = [...studentFields.querySelectorAll('[data-required-for-student]')];
-    const syncStudentFields = () => {
-        const isStudent = userRoleSelect.value === 'mahasiswa';
-        studentFields.hidden = !isStudent;
-        studentRequiredFields.forEach((field) => { field.required = isStudent; });
-        studentProgramField.hidden = !isStudent;
-        studentProgramSelect.disabled = !isStudent;
-        studentProgramSelect.required = isStudent;
-        nonstudentUnitField.hidden = isStudent;
-        nonstudentUnitInput.disabled = isStudent;
-    };
-    userRoleSelect.addEventListener('change', syncStudentFields);
-    syncStudentFields();
-}
-document.querySelectorAll('[data-dialog-close]').forEach((button) => button.addEventListener('click', () => button.closest('dialog')?.close()));
+const syncStudentFields = (userRoleSelect) => {
+    if (!(userRoleSelect instanceof HTMLSelectElement)) return;
+
+    const form = userRoleSelect.closest('form');
+    const studentFields = form?.querySelector('[data-student-fields]');
+    const studentProgramField = form?.querySelector('[data-student-program-field]');
+    const nonstudentUnitField = form?.querySelector('[data-nonstudent-unit-field]');
+    const studentProgramSelect = form?.querySelector('[data-student-program-select]');
+    const nonstudentUnitInput = form?.querySelector('[data-nonstudent-unit-input]');
+    if (!(studentFields instanceof HTMLFieldSetElement)
+        || !(studentProgramField instanceof HTMLDivElement)
+        || !(nonstudentUnitField instanceof HTMLDivElement)
+        || !(studentProgramSelect instanceof HTMLSelectElement)
+        || !(nonstudentUnitInput instanceof HTMLInputElement)) return;
+
+    const isStudent = userRoleSelect.value === 'mahasiswa';
+    studentFields.hidden = !isStudent;
+    studentFields.querySelectorAll('[data-required-for-student]').forEach((field) => {
+        if (field instanceof HTMLInputElement) field.required = isStudent;
+    });
+    studentProgramField.hidden = !isStudent;
+    studentProgramSelect.disabled = !isStudent;
+    studentProgramSelect.required = isStudent;
+    nonstudentUnitField.hidden = isStudent;
+    nonstudentUnitInput.disabled = isStudent;
+};
+
+document.querySelectorAll('[data-user-role-select]').forEach((select) => syncStudentFields(select));
+document.addEventListener('change', (event) => {
+    if (event.target instanceof HTMLSelectElement && event.target.matches('[data-user-role-select]')) {
+        syncStudentFields(event.target);
+    }
+});
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+
+    const closeButton = event.target.closest('[data-dialog-close]');
+    if (closeButton instanceof HTMLButtonElement) closeButton.closest('dialog')?.close();
+});
 document.querySelectorAll('[data-report-tab]').forEach((tab) => {
     tab.addEventListener('click', (event) => {
         event.preventDefault();

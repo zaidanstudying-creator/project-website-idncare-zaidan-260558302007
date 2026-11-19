@@ -69,7 +69,14 @@ class Login extends Component
         session()->put('auth_version', $user->auth_version);
         $activityLogs->record($user, 'login');
 
-        $this->redirectRoute($user->must_change_password ? 'password.change' : 'dashboard');
+        $dashboardRoute = match ($user->role) {
+            UserRole::MAHASISWA => 'dashboard.mahasiswa',
+            UserRole::ADMIN_SARPRAS => 'dashboard.admin-sarpras',
+            UserRole::ADMIN_KEMAHASISWAAN => 'dashboard.admin-kemahasiswaan',
+            UserRole::SUPER_ADMIN => 'dashboard.super-admin',
+        };
+
+        $this->redirectRoute($user->must_change_password ? 'password.change' : $dashboardRoute);
     }
 
     public function render(): View

@@ -49,8 +49,8 @@
                     <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Pilih jenis yang tersedia untuk mahasiswa. Jenis yang dimatikan disembunyikan dari menu dan tidak bisa dibuka atau dikirim lewat tautan langsung.</p>
                 </div>
                 <div class="flex shrink-0 gap-2">
-                    <button type="button" wire:click="setAllReportTypesEnabled(true)" class="rounded-full border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-50">Aktifkan semua</button>
-                    <button type="button" wire:click="setAllReportTypesEnabled(false)" class="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Matikan semua</button>
+                    <button type="button" wire:click="setAllReportTypesEnabled(true)" class="report-type-bulk-action rounded-full border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-50">Aktifkan semua</button>
+                    <button type="button" wire:click="setAllReportTypesEnabled(false)" class="report-type-bulk-action rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Matikan semua</button>
                 </div>
             </div>
             <div class="mt-5 grid gap-3 sm:grid-cols-3">
@@ -58,7 +58,8 @@
                 <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model="aspirationReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Aspirasi</span></label>
                 <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model="violationReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Pengaduan pelanggaran</span></label>
             </div>
-            <p class="mt-4 text-xs leading-5 text-slate-500">Perubahan berlaku setelah menekan tombol Simpan semua pengaturan. Laporan lama tetap tersimpan.</p>
+            <p class="mt-4 text-xs leading-5 text-slate-500">Simpan pilihan di bagian ini tanpa mengubah pengaturan lain. Laporan lama tetap tersimpan.</p>
+            <div class="mt-4 flex justify-end"><button type="button" wire:click="saveReportAvailability" wire:loading.attr="disabled" wire:target="saveReportAvailability" class="rounded-full bg-gradient-to-r from-[#0B5FFF] to-[#1AA7E8] px-6 py-3 font-bold text-white shadow-sm transition hover:-translate-y-0.5 disabled:opacity-60">Simpan pilihan laporan</button></div>
         </section>
 
         <section class="rounded-[1.75rem] border border-blue-100 bg-white p-6 shadow-sm sm:p-8">
@@ -97,6 +98,10 @@
                     <textarea wire:model="maintenanceMessage" rows="3" maxlength="1000" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium"></textarea>
                     @error('maintenanceMessage') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
                 </label>
+                <label class="space-y-2 text-sm font-bold text-slate-800">Coming Soon
+                    <input wire:model="maintenanceComingSoon" type="text" maxlength="80" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium">
+                    @error('maintenanceComingSoon') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
+                </label>
                 <div class="flex flex-wrap items-center gap-3">
                     <button type="button" wire:click="toggleMaintenancePreview" class="rounded-full border border-blue-200 px-5 py-3 font-bold text-blue-700 transition hover:bg-blue-50">{{ $previewingMaintenance ? 'Tutup pratinjau' : 'Pratinjau halaman' }}</button>
                     @if ($setting?->maintenance_updated_at)
@@ -106,7 +111,16 @@
                     @endif
                 </div>
                 @if ($previewingMaintenance)
-                    <aside role="status" class="grid min-h-64 content-center gap-3 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-cyan-50 p-8 text-center"><p class="text-sm font-semibold text-[#0B5FFF]">Pratinjau halaman maintenance</p><h3 class="text-3xl font-extrabold text-[#0A1F44]">{{ $maintenanceTitle }}</h3><p class="mx-auto max-w-xl whitespace-pre-line text-slate-700">{{ $maintenanceMessage }}</p></aside>
+                    @if ($maintenancePreviewHtml)
+                        <iframe
+                            title="Pratinjau halaman maintenance IDN CARE"
+                            sandbox="allow-scripts"
+                            srcdoc="{{ $maintenancePreviewHtml }}"
+                            class="h-[min(78vh,900px)] min-h-[620px] w-full rounded-2xl border border-blue-200 bg-white shadow-inner"
+                        ></iframe>
+                    @else
+                        <p role="status" class="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-800">Halaman maintenance tidak dapat dimuat untuk pratinjau.</p>
+                    @endif
                 @endif
             </div>
         </section>

@@ -10,7 +10,7 @@ use Illuminate\Database\QueryException;
 #[Fillable([
     'maintenance_enabled', 'campus_name', 'logo_path', 'tagline', 'support_contact',
     'announcement_text', 'announcement_enabled', 'theme', 'font_scale',
-    'maintenance_title', 'maintenance_message', 'maintenance_updated_at', 'maintenance_updated_by',
+    'maintenance_title', 'maintenance_message', 'maintenance_coming_soon', 'maintenance_updated_at', 'maintenance_updated_by',
     'facility_reports_enabled', 'aspiration_reports_enabled', 'violation_reports_enabled',
 ])]
 class SiteSetting extends Model

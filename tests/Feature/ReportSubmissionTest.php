@@ -9,6 +9,7 @@ use App\Models\Report;
 use App\Models\ReportAttachment;
 use App\Models\ReportStatusHistory;
 use App\Models\ReportType;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -353,6 +354,36 @@ it('limits report creation routes to students and requires completed first login
     $this->actingAs($student)->get(route('reports.create'))->assertOk();
     $this->actingAs($admin)->get(route('reports.create'))->assertForbidden();
     $this->actingAs($newStudent)->get(route('reports.create'))->assertRedirect(route('password.change'));
+});
+
+it('links to the report selector page from the student sidebar', function (): void {
+    createReportType(ReportType::FACILITAS);
+    $student = User::factory()->create(['must_change_password' => false]);
+
+    $this->actingAs($student)
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('href="'.route('reports.create').'" class="portal-nav-link"', false)
+        ->assertDontSee('aria-controls="create-report-dialog"', false);
+});
+
+it('sizes report type options to fill the available row when one type is disabled', function (): void {
+    createReportType(ReportType::FACILITAS);
+    createReportType(ReportType::ASPIRASI);
+    createReportType(ReportType::PELANGGARAN);
+    SiteSetting::query()->whereKey(1)->update(['aspiration_reports_enabled' => false]);
+
+    $student = User::factory()->create(['must_change_password' => false]);
+    $gridStyle = 'grid-template-columns: repeat(2, minmax(0, 1fr))';
+
+    $this->actingAs($student)
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('class="report-dialog-tabs" role="tablist" aria-label="Jenis laporan" style="'.$gridStyle.'"', false);
+
+    $this->get(route('reports.create'))
+        ->assertOk()
+        ->assertSee('aria-label="Jenis laporan" class="mt-6 grid gap-2 rounded-2xl bg-blue-50 p-2" style="'.$gridStyle.'"', false);
 });
 
 it('renders all three report forms with their applicable fields and privacy controls', function (): void {

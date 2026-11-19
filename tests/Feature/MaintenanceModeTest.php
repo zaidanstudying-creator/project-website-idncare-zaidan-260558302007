@@ -1,12 +1,15 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Middleware\MaintenancePage;
 use App\Livewire\Pages\Admin\Settings\Index as AdminSettingsIndex;
 use App\Livewire\Pages\Auth\Login;
 use App\Models\ActivityLog;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -16,6 +19,19 @@ it('shows the maintenance page to visitors while keeping login available', funct
 
     $this->get('/')->assertStatus(503)->assertSee('Waduh, maaf ya!');
     $this->get(route('login'))->assertOk();
+});
+
+it('allows guest Livewire login updates through the maintenance middleware', function (): void {
+    SiteSetting::query()->whereKey(1)->update(['maintenance_enabled' => true]);
+    $livewireUpdateRoute = Route::getRoutes()->getByName('default-livewire.update');
+
+    expect($livewireUpdateRoute)->not->toBeNull();
+
+    $request = Request::create('/'.ltrim($livewireUpdateRoute->uri(), '/'), 'POST');
+    $request->setRouteResolver(fn () => $livewireUpdateRoute);
+    $response = app(MaintenancePage::class)->handle($request, fn () => response('Livewire request reached its endpoint.'));
+
+    expect($response->getContent())->toBe('Livewire request reached its endpoint.');
 });
 
 it('sends signed-in admins directly to their dashboards during maintenance', function (): void {
@@ -77,7 +93,7 @@ it('keeps a super admin authenticated from Livewire login through the dashboard 
         ->set('userCode', $superAdmin->user_code)
         ->set('password', 'temporary-password')
         ->call('authenticate')
-        ->assertRedirect(route('dashboard'));
+        ->assertRedirect(route('dashboard.super-admin'));
 
     $this->get(route('dashboard'))->assertRedirect(route('dashboard.super-admin'));
     $this->get(route('dashboard.super-admin'))->assertOk()->assertDontSee('Waduh, maaf ya!');
@@ -133,9 +149,14 @@ it('lets an active super admin toggle maintenance on and off through Livewire', 
         ->test(AdminSettingsIndex::class)
         ->set('maintenanceTitle', '<script>alert(1)</script>')
         ->set('maintenanceMessage', 'Pesan pratinjau')
+        ->set('maintenanceComingSoon', 'SEGERA HADIR')
         ->call('toggleMaintenancePreview')
-        ->assertSee('&lt;script&gt;alert(1)&lt;/script&gt;', false)
-        ->assertSee('Pesan pratinjau');
+        ->assertSee('Pratinjau halaman maintenance IDN CARE')
+        ->assertSee('sandbox="allow-scripts"', false)
+        ->assertSee('Pesan pratinjau')
+        ->assertSee('SEGERA HADIR')
+        ->assertSee('construction-title')
+        ->assertSee('&amp;lt;script&amp;gt;alert(1)&amp;lt;/script&amp;gt;', false);
 
     $this->app['auth']->logout();
     $this->get('/')->assertStatus(503)->assertSee('Waduh, maaf ya!');
@@ -167,6 +188,7 @@ it('saves portal preferences and renders the customized maintenance message', fu
         ->set('fontScale', 110)
         ->set('maintenanceTitle', 'Kami sedang memperbarui layanan')
         ->set('maintenanceMessage', 'Silakan kembali sebentar lagi.')
+        ->set('maintenanceComingSoon', 'SEGERA HADIR')
         ->call('saveSettings')
         ->assertHasNoErrors()
         ->assertDispatched('app-notification');
@@ -179,11 +201,12 @@ it('saves portal preferences and renders the customized maintenance message', fu
         'announcement_enabled' => true,
         'font_scale' => 110,
         'maintenance_title' => 'Kami sedang memperbarui layanan',
+        'maintenance_coming_soon' => 'SEGERA HADIR',
     ]);
 
     SiteSetting::query()->whereKey(1)->update(['maintenance_enabled' => true]);
     $this->app['auth']->logout();
-    $this->get('/')->assertStatus(503)->assertSee('Kami sedang memperbarui layanan')->assertSee('Silakan kembali sebentar lagi.');
+    $this->get('/')->assertStatus(503)->assertSee('Kami sedang memperbarui layanan')->assertSee('Silakan kembali sebentar lagi.')->assertSee('SEGERA HADIR');
 });
 
 it('lets the super admin control report types individually or all at once', function (): void {
@@ -229,6 +252,30 @@ it('lets the super admin control report types individually or all at once', func
         ->get(route('reports.create'))
         ->assertOk()
         ->assertSee('semua jenis pelaporan sedang dinonaktifkan');
+});
+
+it('saves report type choices independently from the other portal settings', function (): void {
+    $superAdmin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+    SiteSetting::query()->whereKey(1)->update(['campus_name' => 'Nama kampus tetap']);
+
+    Livewire::actingAs($superAdmin)
+        ->test(AdminSettingsIndex::class)
+        ->set('facilityReportsEnabled', false)
+        ->set('aspirationReportsEnabled', true)
+        ->set('violationReportsEnabled', false)
+        ->call('saveReportAvailability')
+        ->assertHasNoErrors();
+
+    $this->assertDatabaseHas('site_settings', [
+        'id' => 1,
+        'campus_name' => 'Nama kampus tetap',
+        'facility_reports_enabled' => false,
+        'aspiration_reports_enabled' => true,
+        'violation_reports_enabled' => false,
+    ]);
 });
 
 it('shows maintenance to regular accounts and forbids them from changing the setting', function (): void {

@@ -43,6 +43,8 @@ class Index extends Component
 
     public string $maintenanceMessage = 'Website sedang dirawat sebentar. Kami segera kembali.';
 
+    public string $maintenanceComingSoon = 'COMING SOON';
+
     public $logo;
 
     public ?string $currentLogoPath = null;
@@ -71,6 +73,7 @@ class Index extends Component
         $this->fontScale = $setting?->font_scale ?? $this->fontScale;
         $this->maintenanceTitle = $setting?->maintenance_title ?? $this->maintenanceTitle;
         $this->maintenanceMessage = $setting?->maintenance_message ?? $this->maintenanceMessage;
+        $this->maintenanceComingSoon = $setting?->maintenance_coming_soon ?? $this->maintenanceComingSoon;
         $this->currentLogoPath = $setting?->logo_path;
     }
 
@@ -88,6 +91,7 @@ class Index extends Component
             'fontScale' => ['required', 'integer', 'in:100,110,125'],
             'maintenanceTitle' => ['required', 'string', 'max:120'],
             'maintenanceMessage' => ['required', 'string', 'max:1000'],
+            'maintenanceComingSoon' => ['required', 'string', 'max:80'],
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
         ]);
 
@@ -109,6 +113,7 @@ class Index extends Component
             'font_scale' => $validated['fontScale'],
             'maintenance_title' => $validated['maintenanceTitle'],
             'maintenance_message' => $validated['maintenanceMessage'],
+            'maintenance_coming_soon' => $validated['maintenanceComingSoon'],
         ];
         if (isset($validated['logo_path'])) {
             $attributes['logo_path'] = $validated['logo_path'];
@@ -139,6 +144,30 @@ class Index extends Component
         $this->facilityReportsEnabled = $enabled;
         $this->aspirationReportsEnabled = $enabled;
         $this->violationReportsEnabled = $enabled;
+    }
+
+    public function saveReportAvailability(): void
+    {
+        $validated = $this->validate([
+            'facilityReportsEnabled' => ['boolean'],
+            'aspirationReportsEnabled' => ['boolean'],
+            'violationReportsEnabled' => ['boolean'],
+        ]);
+
+        try {
+            DB::transaction(fn () => SiteSetting::query()->whereKey(1)->update([
+                'facility_reports_enabled' => $validated['facilityReportsEnabled'],
+                'aspiration_reports_enabled' => $validated['aspirationReportsEnabled'],
+                'violation_reports_enabled' => $validated['violationReportsEnabled'],
+            ]));
+        } catch (QueryException $exception) {
+            report($exception);
+            $this->dispatch('app-notification', message: 'Pilihan laporan belum tersimpan. Periksa migrasi database di hosting, lalu coba lagi.', type: 'error');
+
+            return;
+        }
+
+        $this->dispatch('app-notification', message: 'Pilihan jenis laporan berhasil disimpan.', type: 'success');
     }
 
     public function toggleMaintenance(ActivityLogService $logs): void
@@ -178,12 +207,29 @@ class Index extends Component
         $this->previewingMaintenance = ! $this->previewingMaintenance;
     }
 
+    private function maintenancePreviewHtml(): ?string
+    {
+        $maintenancePage = public_path('maintenance/index.html');
+        $maintenanceContent = is_file($maintenancePage) ? file_get_contents($maintenancePage) : false;
+
+        if (! is_string($maintenanceContent)) {
+            return null;
+        }
+
+        return str_replace(
+            ['Waduh, maaf ya!', 'Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.', 'COMING SOON'],
+            [e($this->maintenanceTitle), nl2br(e($this->maintenanceMessage)), e($this->maintenanceComingSoon)],
+            $maintenanceContent,
+        );
+    }
+
     public function render(): View
     {
         return view('livewire.pages.admin.settings.index', [
             'reportingReady' => Schema::hasTable('reports'),
             'notificationsReady' => Schema::hasTable('notifications'),
             'setting' => SiteSetting::current(),
+            'maintenancePreviewHtml' => $this->previewingMaintenance ? $this->maintenancePreviewHtml() : null,
         ])->title('Pengaturan');
     }
 }

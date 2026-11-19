@@ -28,7 +28,7 @@ else{$navigation=[['Dashboard',route('dashboard.super-admin'),request()->routeIs
 @if($role==='mahasiswa'&&!$limitedNavigation&&$enabledReportMenuOptions!==[])
 <dialog id="create-report-dialog" class="portal-dialog" aria-labelledby="create-report-title"><div class="dialog-inner">
 <div class="dialog-title"><div><h2 id="create-report-title">Buat laporan</h2><p>Pilih jenis laporan untuk melihat unit tujuan dan informasi privasinya.</p></div><button type="button" data-dialog-close aria-label="Tutup dialog">×</button></div>
-<nav class="report-dialog-tabs" role="tablist" aria-label="Jenis laporan">
+<nav class="report-dialog-tabs" role="tablist" aria-label="Jenis laporan" style="grid-template-columns: repeat({{ count($enabledReportMenuOptions) }}, minmax(0, 1fr))">
 @foreach($enabledReportMenuOptions as [$code,$label])<a href="{{ route('reports.create.form',$code) }}" role="tab" aria-controls="dialog-panel-{{ $code }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}" tabindex="{{ $loop->first ? '0' : '-1' }}" data-report-tab="{{ $code }}">{{ $label }}</a>@endforeach
 </nav>
 @foreach($enabledReportMenuOptions as [$code,$label,$description,$unit,$privacy])

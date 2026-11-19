@@ -16,6 +16,8 @@ it('renders the Indonesian not found page with an actual 404 status', function (
     $this->assertStringContainsString('Halaman tidak ditemukan', $response->getContent());
     $this->assertStringContainsString('Kembali ke beranda', $response->getContent());
     $this->assertStringContainsString('Masuk', $response->getContent());
+    $this->assertStringContainsString('data-theme-choice="dark"', $response->getContent());
+    $this->assertStringContainsString('html[data-theme="dark"] .error-page', $response->getContent());
 });
 
 it('renders the supported HTTP error pages with their actual status codes', function (int $status, string $title): void {
@@ -28,6 +30,8 @@ it('renders the supported HTTP error pages with their actual status codes', func
 
     expect($response->getStatusCode())->toBe($status);
     $this->assertStringContainsString($title, $response->getContent());
+    $this->assertStringContainsString('data-theme-choice="dark"', $response->getContent());
+    $this->assertStringContainsString('html[data-theme="dark"] .error-page', $response->getContent());
 })->with([
     'unauthorized' => [401, 'Silakan masuk untuk melanjutkan'],
     'forbidden' => [403, 'Kamu tidak memiliki izin'],
@@ -63,6 +67,7 @@ it('renders a generic Indonesian server error without exposing exception details
     expect($response->getStatusCode())->toBe(500);
     $this->assertStringContainsString('Terjadi kesalahan pada server', $response->getContent());
     $this->assertStringContainsString('Ke beranda', $response->getContent());
+    $this->assertStringContainsString('data-theme-choice="dark"', $response->getContent());
     $this->assertStringNotContainsString('/contoh-error', $response->getContent());
     $this->assertStringNotContainsString($privateDiagnostic, $response->getContent());
     $this->assertStringNotContainsString($privateQueryValue, $response->getContent());

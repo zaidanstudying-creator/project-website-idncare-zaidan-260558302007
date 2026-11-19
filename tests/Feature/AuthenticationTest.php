@@ -32,7 +32,7 @@ it('logs in active accounts by user code and regenerates the session', function 
         ->set('userCode', $user->user_code)
         ->set('password', 'temporary-password')
         ->call('authenticate')
-        ->assertRedirect(route('dashboard'));
+        ->assertRedirect(route('dashboard.mahasiswa'));
 
     expect(auth()->id())->toBe($user->id)
         ->and(session()->getId())->not->toBe($oldSessionId)

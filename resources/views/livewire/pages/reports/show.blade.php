@@ -71,9 +71,10 @@
                     @can('reopen', $report)
                         <form wire:submit="reopen" class="mt-4 space-y-3">
                             <label for="reason" class="block text-sm font-semibold">Alasan jika dibuka kembali</label>
-                            <textarea id="reason" wire:model="reopenReason" required minlength="5" maxlength="5000" rows="3" class="w-full rounded-2xl border border-blue-100 px-4 py-3 text-sm focus:border-[#0B5FFF] focus:ring-4 focus:ring-blue-100" placeholder="Jelaskan hal yang belum sesuai." @if ($errors->has('reopenReason')) aria-invalid="true" aria-describedby="reopen-reason-error" @endif></textarea>
+                            <textarea id="reason" wire:model.live="reopenReason" required minlength="5" maxlength="5000" rows="3" class="w-full rounded-2xl border border-blue-100 px-4 py-3 text-sm focus:border-[#0B5FFF] focus:ring-4 focus:ring-blue-100" placeholder="Jelaskan hal yang belum sesuai." @if ($errors->has('reopenReason')) aria-invalid="true" aria-describedby="reopen-reason-error" @endif></textarea>
                             @error('reopenReason')<p id="reopen-reason-error" class="field-error">{{ $message }}</p>@enderror
-                            <button wire:confirm="Buka kembali laporan ini? Statusnya akan kembali ke Diproses." wire:loading.attr="disabled" wire:target="reopen" class="w-full rounded-full border border-[#0B5FFF] px-5 py-3 text-sm font-bold text-[#0B5FFF] hover:bg-blue-50"><span wire:loading.remove wire:target="reopen">Buka kembali</span><span wire:loading wire:target="reopen">Menyimpan…</span></button>
+                            @error('report')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                            <button type="submit" wire:confirm="Buka kembali laporan ini? Statusnya akan kembali ke Diproses." wire:loading.attr="disabled" wire:target="reopen" class="w-full rounded-full border border-[#0B5FFF] px-5 py-3 text-sm font-bold text-[#0B5FFF] hover:bg-blue-50"><span wire:loading.remove wire:target="reopen">Buka kembali</span><span wire:loading wire:target="reopen">Menyimpan…</span></button>
                             <p class="text-xs text-slate-500">Setelah dikonfirmasi, opsi pembukaan kembali tidak tersedia.</p>
                         </form>
                     @endcan

@@ -29,7 +29,7 @@
             @if ($types->isEmpty())
                 <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950" role="status">Saat ini semua jenis pelaporan sedang dinonaktifkan. Silakan hubungi administrator kampus jika membutuhkan bantuan.</div>
             @else
-            <nav aria-label="Jenis laporan" class="mt-6 grid grid-cols-1 gap-2 rounded-2xl bg-blue-50 p-2 sm:grid-cols-3">
+            <nav aria-label="Jenis laporan" class="mt-6 grid gap-2 rounded-2xl bg-blue-50 p-2" style="grid-template-columns: repeat({{ $types->count() }}, minmax(0, 1fr))">
                 @foreach ($types as $type)
                     <a href="{{ route('reports.create', ['type' => $type->code]) }}" @class([
                         'rounded-xl px-3 py-3 text-center text-sm font-bold transition',

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Pages\Reports\Show as StudentReportShow;
 use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Location;
@@ -11,6 +12,7 @@ use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -202,6 +204,25 @@ it('reopens token-owned anonymous reports without linking the reporter in histor
         ->and($log->user_id)->toBeNull()
         ->and($log->ip_address)->toBeNull()
         ->and($log->new_values)->toBe(['status' => Report::STATUS_DIPROSES, 'reopened_count' => 1]);
+});
+
+it('reopens a finished report from the student Livewire page and refreshes its displayed status', function (): void {
+    $reporter = User::factory()->create(['must_change_password' => false]);
+    $report = visibilityReport(visibilityType(ReportType::ASPIRASI), $reporter, [
+        'status' => Report::STATUS_SELESAI,
+        'completed_at' => now()->subDay(),
+    ]);
+
+    Livewire::actingAs($reporter)
+        ->test(StudentReportShow::class, ['report' => (string) $report->getKey()])
+        ->assertSee('Selesai')
+        ->set('reopenReason', 'Tindak lanjut belum sesuai.')
+        ->call('reopen')
+        ->assertHasNoErrors()
+        ->assertSee('Diproses');
+
+    expect($report->fresh()->status)->toBe(Report::STATUS_DIPROSES)
+        ->and($report->fresh()->completed_at)->toBeNull();
 });
 
 it('requires a reopen reason, does not impose the proposed reopen cap, and refuses other owners', function (): void {

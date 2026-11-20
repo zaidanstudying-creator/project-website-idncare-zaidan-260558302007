@@ -65,7 +65,7 @@
                                                 <span class="sr-only">Aktifkan kembali</span>
                                             </button>
                                     @endif
-                                    <button type="button" wire:click="deleteUser({{ $user->id }})" wire:confirm="Hapus permanen akun {{ $user->name }}? Tindakan ini tidak dapat dibatalkan. Akun yang memiliki riwayat laporan atau aktivitas akan tetap dilindungi." aria-label="Hapus permanen akun {{ $user->name }}" title="Hapus permanen akun" class="inline-flex size-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600">
+                                    <button type="button" wire:click="deleteUser({{ $user->id }})" wire:confirm="Hapus permanen akun {{ $user->name }}? Akun tidak dapat dipulihkan. Laporan, lampiran, riwayat status, dan log aktivitas tetap disimpan." aria-label="Hapus permanen akun {{ $user->name }}" title="Hapus permanen akun" class="inline-flex size-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600">
                                         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M3 6h18m-2 0-.9 14H5.9L5 6m4 0V4h6v2m-5 6v5m4-5v5"/></svg>
                                         <span class="sr-only">Hapus permanen</span>
                                     </button>

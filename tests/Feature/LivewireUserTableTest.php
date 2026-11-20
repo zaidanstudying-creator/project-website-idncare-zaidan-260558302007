@@ -3,6 +3,11 @@
 use App\Enums\UserRole;
 use App\Livewire\Pages\Admin\Users\Index as AdminUsersIndex;
 use App\Models\ActivityLog;
+use App\Models\Category;
+use App\Models\Report;
+use App\Models\ReportAttachment;
+use App\Models\ReportStatusHistory;
+use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -156,7 +161,7 @@ it('paginates account results in batches of twenty', function (): void {
         ->assertSee('USR-21');
 });
 
-it('permanently deletes an account with no report or activity history', function (): void {
+it('permanently deletes an account that has no retained report history', function (): void {
     $admin = User::factory()->create([
         'role' => UserRole::SUPER_ADMIN,
         'must_change_password' => false,
@@ -174,7 +179,7 @@ it('permanently deletes an account with no report or activity history', function
 
     Livewire::actingAs($admin)->test('components.admin.user-table')
         ->call('deleteUser', $target->id)
-        ->assertDispatched('app-notification', message: 'Akun berhasil dihapus permanen.', type: 'success');
+        ->assertDispatched('app-notification', message: 'Akun berhasil dihapus permanen. Semua laporan dan riwayatnya tetap tersimpan.', type: 'success');
 
     expect(User::query()->whereKey($target->id)->exists())->toBeFalse()
         ->and($notification->fresh())->toBeNull();
@@ -185,22 +190,84 @@ it('permanently deletes an account with no report or activity history', function
     ]);
 });
 
-it('protects accounts referenced by immutable activity logs from permanent deletion', function (): void {
+it('deletes an account while keeping its reports and immutable activity history', function (): void {
     $admin = User::factory()->create([
         'role' => UserRole::SUPER_ADMIN,
         'must_change_password' => false,
     ]);
-    $target = User::factory()->create(['must_change_password' => false]);
-    ActivityLog::query()->create([
+    $target = User::factory()->create([
+        'user_code' => 'MHS-REMOVE-REPORTS',
+        'role' => UserRole::MAHASISWA,
+        'must_change_password' => false,
+    ]);
+    $reportType = ReportType::query()->create([
+        'code' => ReportType::FACILITAS,
+        'name' => 'Laporan Fasilitas',
+    ]);
+    $category = Category::query()->create([
+        'report_type_id' => $reportType->id,
+        'name' => 'Kebersihan',
+        'is_active' => true,
+    ]);
+    $report = Report::query()->create([
+        'ticket_no' => 'IDN-DELETE-ACCOUNT-01',
+        'reporter_id' => $target->id,
+        'report_type_id' => $reportType->id,
+        'category_id' => $category->id,
+        'title' => 'Lampu koridor rusak',
+        'description' => 'Lampu koridor lantai dua mati.',
+        'status' => Report::STATUS_DIKIRIM,
+        'assigned_unit' => ReportType::UNIT_SARPRAS,
+    ]);
+    $history = ReportStatusHistory::query()->create([
+        'report_id' => $report->id,
+        'to_status' => Report::STATUS_DIKIRIM,
+        'note' => 'Laporan diterima.',
+        'changed_by' => $target->id,
+        'created_at' => now(),
+    ]);
+    $attachment = ReportAttachment::query()->create([
+        'report_id' => $report->id,
+        'file_path' => 'reports/IDN-DELETE-ACCOUNT-01/before/photo.jpg',
+        'kind' => 'before',
+        'uploaded_by' => $target->id,
+        'created_at' => now(),
+    ]);
+    $oldActivity = ActivityLog::query()->create([
         'user_id' => $target->id,
         'role' => UserRole::MAHASISWA->value,
         'action' => 'login',
+        'created_at' => now(),
     ]);
 
     Livewire::actingAs($admin)->test('components.admin.user-table')
         ->call('deleteUser', $target->id)
-        ->assertDispatched('app-notification', type: 'error');
+        ->assertDispatched('app-notification', message: 'Akun berhasil dihapus permanen. Semua laporan dan riwayatnya tetap tersimpan.', type: 'success');
 
-    expect(User::query()->whereKey($target->id)->exists())->toBeTrue()
-        ->and(ActivityLog::query()->where('user_id', $target->id)->exists())->toBeTrue();
+    expect(User::query()->whereKey($target->id)->exists())->toBeFalse()
+        ->and(ActivityLog::query()->find($oldActivity->id)?->user)->toBeNull();
+
+    $this->assertDatabaseHas('reports', [
+        'id' => $report->id,
+        'ticket_no' => 'IDN-DELETE-ACCOUNT-01',
+        'reporter_id' => null,
+        'title' => 'Lampu koridor rusak',
+    ]);
+    $this->assertDatabaseHas('report_status_histories', [
+        'id' => $history->id,
+        'report_id' => $report->id,
+        'changed_by' => null,
+        'note' => 'Laporan diterima.',
+    ]);
+    $this->assertDatabaseHas('report_attachments', [
+        'id' => $attachment->id,
+        'report_id' => $report->id,
+        'file_path' => 'reports/IDN-DELETE-ACCOUNT-01/before/photo.jpg',
+        'uploaded_by' => null,
+    ]);
+    $this->assertDatabaseHas('activity_logs', [
+        'id' => $oldActivity->id,
+        'user_id' => $target->id,
+        'action' => 'login',
+    ]);
 });

@@ -135,18 +135,24 @@ it('limits unit admins and lets students see owned and public reports', function
     $student = User::factory()->create();
     $otherStudent = User::factory()->create();
     $sarprasAdmin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS]);
+    $anotherSarprasAdmin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS]);
     $kemahasiswaanAdmin = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN]);
+    $anotherKemahasiswaanAdmin = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN]);
     $facility = ReportType::create(['code' => ReportType::FACILITAS, 'name' => 'Laporan Fasilitas']);
     $aspiration = ReportType::create(['code' => ReportType::ASPIRASI, 'name' => 'Aspirasi']);
     $violation = ReportType::create(['code' => ReportType::PELANGGARAN, 'name' => 'Laporan Dugaan Pelanggaran']);
 
-    $ownedPrivate = createScopedReport($facility, $student);
+    $ownedPrivate = createScopedReport($facility, $student, [
+        'assigned_unit' => ReportType::UNIT_KEMAHASISWAAN,
+    ]);
     $otherPublic = createScopedReport($aspiration, $otherStudent, [
+        'assigned_unit' => ReportType::UNIT_SARPRAS,
         'requested_visibility' => Report::VISIBILITY_UMUM,
         'visibility_status' => Report::VISIBILITY_APPROVED,
         'approved_visibility' => Report::VISIBILITY_UMUM,
     ]);
     $anonymousViolation = createScopedReport($violation, $otherStudent, [
+        'assigned_unit' => ReportType::UNIT_SARPRAS,
         'reporter_id' => null,
         'reporter_token' => Report::reporterTokenFor($otherStudent),
         'is_anonymous' => true,
@@ -156,7 +162,9 @@ it('limits unit admins and lets students see owned and public reports', function
     ]);
 
     expect(Report::visibleTo($sarprasAdmin)->pluck('id')->all())->toBe([$ownedPrivate->id])
+        ->and(Report::visibleTo($anotherSarprasAdmin)->pluck('id')->all())->toBe([$ownedPrivate->id])
         ->and(Report::visibleTo($kemahasiswaanAdmin)->pluck('id')->all())->toBe([$otherPublic->id, $anonymousViolation->id])
+        ->and(Report::visibleTo($anotherKemahasiswaanAdmin)->pluck('id')->all())->toBe([$otherPublic->id, $anonymousViolation->id])
         ->and(Report::visibleTo($student)->pluck('id')->all())->toBe([$ownedPrivate->id, $otherPublic->id]);
 });
 

@@ -13,6 +13,7 @@ use App\Models\ReportStatusHistory;
 use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -283,10 +284,14 @@ it('serves a public report attachment only to users allowed to view that report'
         'visibility_status' => Report::VISIBILITY_APPROVED,
         'approved_visibility' => Report::VISIBILITY_UMUM,
     ]);
-    Storage::disk('local')->put('reports/public-evidence.png', 'image');
+    $imagePath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('public-evidence.png'),
+        'public-evidence.png',
+    );
     $attachment = ReportAttachment::query()->create([
         'report_id' => $report->id,
-        'file_path' => 'reports/public-evidence.png',
+        'file_path' => $imagePath,
         'kind' => 'evidence',
     ]);
 

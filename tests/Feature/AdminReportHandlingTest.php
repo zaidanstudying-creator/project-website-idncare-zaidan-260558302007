@@ -47,19 +47,59 @@ function handlingReport(ReportType $type, User $reporter, array $attributes = []
     ]);
 }
 
-it('limits admin report lists and details to each assigned unit', function (): void {
+it('shows each report type to every account assigned to its admin role', function (): void {
+    Storage::fake('local');
     $student = User::factory()->create(['must_change_password' => false]);
-    $facility = handlingReport(handlingType(ReportType::FACILITAS), $student);
-    $aspiration = handlingReport(handlingType(ReportType::ASPIRASI), $student);
+    $facility = handlingReport(handlingType(ReportType::FACILITAS), $student, [
+        'assigned_unit' => ReportType::UNIT_KEMAHASISWAAN,
+    ]);
+    $aspiration = handlingReport(handlingType(ReportType::ASPIRASI), $student, [
+        'assigned_unit' => ReportType::UNIT_SARPRAS,
+    ]);
+    $violation = handlingReport(handlingType(ReportType::PELANGGARAN), $student, [
+        'assigned_unit' => ReportType::UNIT_SARPRAS,
+        'reporter_id' => null,
+        'reporter_token' => Report::reporterTokenFor($student),
+        'is_anonymous' => true,
+        'requested_visibility' => Report::VISIBILITY_RAHASIA,
+        'visibility_status' => Report::VISIBILITY_APPROVED,
+        'approved_visibility' => Report::VISIBILITY_RAHASIA,
+    ]);
+    $evidencePath = UploadedFile::fake()->image('evidence.png')->store('reports', 'local');
+    $violationAttachment = $violation->attachments()->create([
+        'file_path' => $evidencePath,
+        'kind' => 'evidence',
+    ]);
     $sarpras = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
+    $anotherSarpras = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
     $kemahasiswaan = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
+    $anotherKemahasiswaan = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
+    $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
 
     $this->actingAs($sarpras)->get(route('admin.reports.index'))
-        ->assertOk()->assertSee($facility->ticket_no)->assertDontSee($aspiration->ticket_no);
+        ->assertOk()->assertSee($facility->ticket_no)->assertDontSee($aspiration->ticket_no)->assertDontSee($violation->ticket_no);
+    $this->actingAs($anotherSarpras)->get(route('admin.reports.index'))
+        ->assertOk()->assertSee($facility->ticket_no)->assertDontSee($aspiration->ticket_no)->assertDontSee($violation->ticket_no);
     $this->actingAs($kemahasiswaan)->get(route('admin.reports.index'))
-        ->assertOk()->assertSee($aspiration->ticket_no)->assertDontSee($facility->ticket_no);
+        ->assertOk()->assertSee($aspiration->ticket_no)->assertSee($violation->ticket_no)->assertDontSee($facility->ticket_no);
+    $this->actingAs($anotherKemahasiswaan)->get(route('admin.reports.index'))
+        ->assertOk()->assertSee($aspiration->ticket_no)->assertSee($violation->ticket_no)->assertDontSee($facility->ticket_no);
+    $this->actingAs($superAdmin)->get(route('admin.reports.index'))
+        ->assertOk()->assertSee($facility->ticket_no)->assertSee($aspiration->ticket_no)->assertSee($violation->ticket_no);
     $this->actingAs($sarpras)->get(route('admin.reports.show', $aspiration))->assertNotFound();
     $this->actingAs($kemahasiswaan)->get(route('admin.reports.show', $facility))->assertNotFound();
+    $this->actingAs($anotherKemahasiswaan)->get(route('admin.reports.show', $aspiration))->assertOk();
+    $this->actingAs($anotherKemahasiswaan)->get(route('admin.reports.show', $violation))->assertOk();
+    $this->actingAs($kemahasiswaan)->get(route('attachments.show', $violationAttachment))
+        ->assertOk()->assertSee('data:image/png;base64,', false);
+    $this->actingAs($anotherKemahasiswaan)->get(route('attachments.show', $violationAttachment))
+        ->assertOk()->assertSee('data:image/png;base64,', false);
+    $this->actingAs($superAdmin)->get(route('admin.reports.show', $facility))->assertOk();
+    $this->actingAs($superAdmin)->get(route('admin.reports.show', $aspiration))->assertOk();
+    $this->actingAs($superAdmin)->get(route('admin.reports.show', $violation))->assertOk();
+    $this->actingAs($superAdmin)->get(route('attachments.show', $violationAttachment))
+        ->assertOk()->assertSee('data:image/png;base64,', false);
+    $this->actingAs($sarpras)->get(route('attachments.show', $violationAttachment))->assertForbidden();
 });
 
 it('shows a token-owned anonymous violation without loading or displaying reporter identity', function (): void {

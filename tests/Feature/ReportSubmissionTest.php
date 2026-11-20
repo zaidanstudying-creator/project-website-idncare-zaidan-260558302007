@@ -75,6 +75,22 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
 
     Storage::disk('local')->assertExists($attachment->file_path);
     Storage::disk('public')->assertMissing($attachment->file_path);
+
+    $admin = User::factory()->create([
+        'role' => UserRole::ADMIN_SARPRAS,
+        'must_change_password' => false,
+    ]);
+
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.reports.show', $report))
+        ->assertOk()
+        ->assertSee(route('attachments.show', $attachment), false)
+        ->assertSee('Lihat 1');
+
+    $this->get(route('attachments.show', $attachment))
+        ->assertOk()
+        ->assertSee('data:image/', false)
+        ->assertSee(route('admin.reports.show', $report), false);
 });
 
 it('stores aspirations without AI suggestions or requiring a location or photo', function (): void {
@@ -274,10 +290,14 @@ it('authorizes private attachment access through the report policy', function ()
         'description' => 'Deskripsi.',
         'assigned_unit' => ReportType::UNIT_SARPRAS,
     ]);
-    Storage::disk('local')->put('reports/private.png', 'private photo');
+    $privatePhotoPath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('private.png'),
+        'private-photo',
+    );
     $attachment = ReportAttachment::query()->create([
         'report_id' => $report->id,
-        'file_path' => 'reports/private.png',
+        'file_path' => $privatePhotoPath,
         'kind' => 'before',
         'uploaded_by' => $student->id,
     ]);
@@ -322,10 +342,14 @@ it('authorizes private attachment access through the report policy', function ()
         'is_anonymous' => true,
         'assigned_unit' => ReportType::UNIT_KEMAHASISWAAN,
     ]);
-    Storage::disk('local')->put('reports/evidence.png', 'private evidence');
+    $evidencePath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('evidence.png'),
+        'evidence',
+    );
     $evidence = ReportAttachment::query()->create([
         'report_id' => $anonymousReport->id,
-        'file_path' => 'reports/evidence.png',
+        'file_path' => $evidencePath,
         'kind' => 'evidence',
         'uploaded_by' => null,
     ]);

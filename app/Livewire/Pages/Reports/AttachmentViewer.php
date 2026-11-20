@@ -27,9 +27,7 @@ class AttachmentViewer extends Component
     public function download(): mixed
     {
         $attachment = $this->attachment();
-        $disk = Storage::disk('local');
-        $content = $disk->get($attachment->file_path);
-        $contentType = $disk->mimeType($attachment->file_path) ?? 'application/octet-stream';
+        [$contentType, $content] = $this->imageContent($attachment);
 
         return response()->streamDownload(function () use ($content): void {
             echo $content;
@@ -42,10 +40,8 @@ class AttachmentViewer extends Component
     public function render(): View
     {
         $attachment = $this->attachment();
-        $disk = Storage::disk('local');
-        $contentType = $disk->mimeType($attachment->file_path) ?? 'application/octet-stream';
-        abort_unless(str_starts_with($contentType, 'image/'), 404);
-        $image = 'data:'.$contentType.';base64,'.base64_encode($disk->get($attachment->file_path));
+        [$contentType, $content] = $this->imageContent($attachment);
+        $image = 'data:'.$contentType.';base64,'.base64_encode($content);
         $backUrl = auth()->user()?->role === UserRole::MAHASISWA
             ? route('reports.show', $attachment->report_id)
             : route('admin.reports.show', $attachment->report_id);
@@ -62,5 +58,17 @@ class AttachmentViewer extends Component
         abort_unless(Storage::disk('local')->exists($attachment->file_path), 404);
 
         return $attachment;
+    }
+
+    /** @return array{0: 'image/jpeg'|'image/png', 1: string} */
+    private function imageContent(ReportAttachment $attachment): array
+    {
+        $content = Storage::disk('local')->get($attachment->file_path);
+        $imageInfo = @getimagesizefromstring($content);
+        $contentType = is_array($imageInfo) ? ($imageInfo['mime'] ?? null) : null;
+
+        abort_unless(in_array($contentType, ['image/jpeg', 'image/png'], true), 404);
+
+        return [$contentType, $content];
     }
 }

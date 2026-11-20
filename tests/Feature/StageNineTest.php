@@ -338,21 +338,25 @@ it('downloads archive exports through Livewire for each supported format', funct
 
 it('serves archived attachments only after normal report policy authorization', function (): void {
     Storage::fake('local');
-    Storage::disk('local')->put('reports/archived.jpg', 'private-image');
+    $archivedImagePath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('archived.png'),
+        'archived.jpg',
+    );
     $admin = stageNineAdmin();
     $reporter = User::factory()->create(['must_change_password' => false]);
     $report = stageNineReport($reporter);
     $report->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
-    $attachment = $report->attachments()->create(['file_path' => 'reports/archived.jpg', 'kind' => 'before']);
+    $attachment = $report->attachments()->create(['file_path' => $archivedImagePath, 'kind' => 'before']);
 
-    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('private-image'));
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
 
     $assignedUnitAdmin = User::factory()->create([
         'role' => UserRole::ADMIN_KEMAHASISWAAN,
         'must_change_password' => false,
     ])->fresh();
     $this->withSession(['auth_version' => $assignedUnitAdmin->auth_version])->actingAs($assignedUnitAdmin)
-        ->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('private-image'));
+        ->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
 
     $wrongUnitAdmin = User::factory()->create([
         'role' => UserRole::ADMIN_SARPRAS,
@@ -375,8 +379,12 @@ it('lets students view their own archived reports and attachments without enabli
         'status' => Report::STATUS_SELESAI,
         'completed_at' => now()->subDays(8),
     ])->save();
-    Storage::disk('local')->put('reports/student-archive.jpg', 'private-archive-image');
-    $attachment = $archived->attachments()->create(['file_path' => 'reports/student-archive.jpg', 'kind' => 'after']);
+    $archivePhotoPath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('student-archive.png'),
+        'student-archive.jpg',
+    );
+    $attachment = $archived->attachments()->create(['file_path' => $archivePhotoPath, 'kind' => 'after']);
 
     $otherArchived = stageNineReport($other);
     $otherArchived->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
@@ -385,7 +393,7 @@ it('lets students view their own archived reports and attachments without enabli
         ->assertOk()->assertSee($archived->ticket_no)->assertSee('Diarsipkan');
     $this->get(route('reports.show', $archived->id))
         ->assertOk()->assertSee('Detail dan lampiran tetap tersedia untuk pemilik laporan');
-    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('private-archive-image'));
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
     $this->get(route('reports.show', $otherArchived->id))->assertNotFound();
 
     Livewire::actingAs($owner)->test(StudentReportShow::class, ['report' => (string) $archived->id])
@@ -414,12 +422,16 @@ it('uses the anonymous HMAC owner check for archived student report and attachme
         'archived_at' => now(),
         'academic_year' => '2025/2026',
     ]);
-    Storage::disk('local')->put('reports/anonymous-archive.jpg', 'anonymous-private-image');
-    $attachment = $anonymous->attachments()->create(['file_path' => 'reports/anonymous-archive.jpg', 'kind' => 'evidence']);
+    $anonymousPhotoPath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('anonymous-archive.png'),
+        'anonymous-archive.jpg',
+    );
+    $attachment = $anonymous->attachments()->create(['file_path' => $anonymousPhotoPath, 'kind' => 'evidence']);
 
     $this->actingAs($owner)->get(route('reports.show', $anonymous->id))
         ->assertOk()->assertSee('Laporan anonim terarsip')->assertDontSee($owner->user_code);
-    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee(base64_encode('anonymous-private-image'));
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
     $this->actingAs($other)->get(route('reports.show', $anonymous->id))->assertNotFound();
     $this->get(route('attachments.show', $attachment))->assertForbidden();
 });

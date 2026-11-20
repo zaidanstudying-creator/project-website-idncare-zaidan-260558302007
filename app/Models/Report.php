@@ -136,11 +136,13 @@ class Report extends Model
         }
 
         if ($user->role === UserRole::ADMIN_SARPRAS) {
-            return $query->where('assigned_unit', ReportType::UNIT_SARPRAS);
+            return $query->whereHas('reportType', fn (Builder $types): Builder => $types
+                ->whereIn('code', ReportType::codesHandledBy($user->role)));
         }
 
         if ($user->role === UserRole::ADMIN_KEMAHASISWAAN) {
-            return $query->where('assigned_unit', ReportType::UNIT_KEMAHASISWAAN);
+            return $query->whereHas('reportType', fn (Builder $types): Builder => $types
+                ->whereIn('code', ReportType::codesHandledBy($user->role)));
         }
 
         return $query->where(function (Builder $query) use ($user): void {

@@ -18,8 +18,7 @@ class ReportPolicy
     {
         return match ($user->role) {
             UserRole::SUPER_ADMIN => true,
-            UserRole::ADMIN_SARPRAS => $report->assigned_unit === ReportType::UNIT_SARPRAS,
-            UserRole::ADMIN_KEMAHASISWAAN => $report->assigned_unit === ReportType::UNIT_KEMAHASISWAAN,
+            UserRole::ADMIN_SARPRAS, UserRole::ADMIN_KEMAHASISWAAN => $this->handlesReportType($user, $report),
             UserRole::MAHASISWA => $this->isOwnedBy($user, $report) || $this->isPublic($report),
         };
     }
@@ -28,8 +27,7 @@ class ReportPolicy
     {
         return match ($user->role) {
             UserRole::SUPER_ADMIN => false,
-            UserRole::ADMIN_SARPRAS => $report->assigned_unit === ReportType::UNIT_SARPRAS,
-            UserRole::ADMIN_KEMAHASISWAAN => $report->assigned_unit === ReportType::UNIT_KEMAHASISWAAN,
+            UserRole::ADMIN_SARPRAS, UserRole::ADMIN_KEMAHASISWAAN => $this->handlesReportType($user, $report),
             UserRole::MAHASISWA => false,
         };
     }
@@ -48,8 +46,8 @@ class ReportPolicy
         }
 
         return match ($user->role) {
-            UserRole::ADMIN_SARPRAS => $report->assigned_unit === ReportType::UNIT_SARPRAS && $typeCode === ReportType::FACILITAS,
-            UserRole::ADMIN_KEMAHASISWAAN => $report->assigned_unit === ReportType::UNIT_KEMAHASISWAAN && $typeCode === ReportType::ASPIRASI,
+            UserRole::ADMIN_SARPRAS => $typeCode === ReportType::FACILITAS,
+            UserRole::ADMIN_KEMAHASISWAAN => $typeCode === ReportType::ASPIRASI,
             default => false,
         };
     }
@@ -71,6 +69,13 @@ class ReportPolicy
     private function isOwnedBy(User $user, Report $report): bool
     {
         return Report::query()->ownedBy($user, includeArchived: true)->whereKey($report->getKey())->exists();
+    }
+
+    private function handlesReportType(User $user, Report $report): bool
+    {
+        $typeCode = $report->reportType()->value('code');
+
+        return in_array($typeCode, ReportType::codesHandledBy($user->role), true);
     }
 
     private function isPublic(Report $report): bool

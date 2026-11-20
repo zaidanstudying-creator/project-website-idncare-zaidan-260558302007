@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,16 @@ class ReportType extends Model
             self::FACILITAS => self::UNIT_SARPRAS,
             self::ASPIRASI, self::PELANGGARAN => self::UNIT_KEMAHASISWAAN,
             default => throw new LogicException("Unknown report type [{$this->code}]."),
+        };
+    }
+
+    /** @return array<int, string> */
+    public static function codesHandledBy(UserRole $role): array
+    {
+        return match ($role) {
+            UserRole::ADMIN_SARPRAS => [self::FACILITAS],
+            UserRole::ADMIN_KEMAHASISWAAN => [self::ASPIRASI, self::PELANGGARAN],
+            default => [],
         };
     }
 }

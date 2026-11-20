@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\UserRole;
 use App\Models\Report;
 use App\Models\ReportStatusHistory;
 use App\Models\ReportType;
 use App\Models\User;
+use App\Notifications\ReportSubmittedNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -104,6 +106,18 @@ class ReportSubmissionService
                         ['count' => count($storedPaths), 'kind' => $isViolation ? 'evidence' : 'before'],
                         $anonymousViolation,
                     );
+                }
+
+                $adminRoles = $report->assigned_unit === ReportType::UNIT_SARPRAS
+                    ? [UserRole::ADMIN_SARPRAS, UserRole::SUPER_ADMIN]
+                    : [UserRole::ADMIN_KEMAHASISWAAN, UserRole::SUPER_ADMIN];
+                $adminRoleValues = array_map(fn (UserRole $role): string => $role->value, $adminRoles);
+                $message = 'Laporan baru masuk dan menunggu peninjauan.';
+                User::query()->where('is_active', true)->whereIn('role', $adminRoleValues)->get()
+                    ->each(fn (User $admin): mixed => $admin->notify(new ReportSubmittedNotification($report, $message)));
+
+                if (! $anonymousViolation) {
+                    $reporter->notify(new ReportSubmittedNotification($report, 'Laporan berhasil dikirim.'));
                 }
 
                 return $report;

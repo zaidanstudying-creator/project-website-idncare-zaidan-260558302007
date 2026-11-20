@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pages\Auth;
 
+use App\Enums\UserRole;
 use App\Services\ActivityLogService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
@@ -40,7 +41,13 @@ class PasswordChange extends Component
         });
 
         session()->regenerate();
-        $this->redirectRoute('dashboard', navigate: false);
+        session()->flash('status', 'Password berhasil diganti.');
+        $this->redirectRoute(match ($user->role) {
+            UserRole::MAHASISWA => 'dashboard.mahasiswa',
+            UserRole::ADMIN_SARPRAS => 'dashboard.admin-sarpras',
+            UserRole::ADMIN_KEMAHASISWAAN => 'dashboard.admin-kemahasiswaan',
+            UserRole::SUPER_ADMIN => 'dashboard.super-admin',
+        }, navigate: false);
     }
 
     public function render(): View

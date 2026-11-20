@@ -163,6 +163,7 @@ class CreateForm extends Component
             'related_party' => $isViolation ? (($data['relatedParty'] ?? '') ?: null) : null,
         ]);
 
+        $this->dispatch('report-submitted');
         session()->flash('status', 'Laporan berhasil dikirim. Tiketnya tersedia di daftar laporan saya.');
         $this->redirectRoute('reports.index', navigate: false);
     }

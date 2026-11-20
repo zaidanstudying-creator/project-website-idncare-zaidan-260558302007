@@ -3,6 +3,7 @@
 namespace App\Livewire\Components\Admin;
 
 use App\Enums\UserRole;
+use App\Models\ActivityLog;
 use App\Models\User;
 use App\Services\ActivityLogService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -105,6 +106,39 @@ class UserTable extends Component
         });
 
         $this->dispatch('app-notification', message: $wasActive ? 'Akun dinonaktifkan.' : 'Akun berhasil diaktifkan kembali.', type: 'success');
+    }
+
+    public function deleteUser(int $userId, ActivityLogService $logs): void
+    {
+        $actor = auth()->user();
+        $target = User::query()->findOrFail($userId);
+        abort_if($actor->is($target), 422, 'Super Admin tidak dapat menghapus akunnya sendiri.');
+
+        $deleted = DB::transaction(function () use ($actor, $userId, $logs): bool {
+            $target = User::query()->lockForUpdate()->findOrFail($userId);
+
+            if (DB::table('reports')->where('reporter_id', $userId)->exists()
+                || DB::table('report_status_histories')->where('changed_by', $userId)->exists()
+                || DB::table('report_attachments')->where('uploaded_by', $userId)->exists()
+                || ActivityLog::query()->where('user_id', $userId)->exists()) {
+                return false;
+            }
+
+            $logs->record($actor, 'user_deleted', $target, [
+                'user_code' => $target->user_code,
+                'role' => $target->role->value,
+            ]);
+            $target->notifications()->delete();
+            DB::table('sessions')->where('user_id', $userId)->delete();
+            $target->delete();
+
+            return true;
+        });
+
+        $this->dispatch('app-notification', message: $deleted
+            ? 'Akun berhasil dihapus permanen.'
+            : 'Akun memiliki riwayat laporan atau aktivitas dan tidak dapat dihapus permanen. Nonaktifkan akun agar riwayat tetap terjaga.',
+            type: $deleted ? 'success' : 'error');
     }
 
     public function render()

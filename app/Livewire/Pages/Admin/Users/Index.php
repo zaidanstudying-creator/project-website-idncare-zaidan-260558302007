@@ -78,6 +78,7 @@ class Index extends Component
         $this->temporaryUserCode = $user->user_code;
         $this->temporaryPassword = $password;
         $this->reset(['user_code', 'name', 'role', 'unit_or_prodi', 'nim', 'angkatan']);
+        $this->dispatch('account-created');
         $this->dispatch('app-notification', message: 'Akun dibuat. Salin password awal sekarang; password tidak disimpan untuk ditampilkan kembali.', type: 'success');
     }
 

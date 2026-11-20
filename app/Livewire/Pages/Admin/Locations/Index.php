@@ -19,7 +19,7 @@ class Index extends Component
 
     public string $newName = '';
 
-    /** @var array<int, array{name: string, is_active: bool}> */
+    /** @var array<int, array{name: string}> */
     public array $locationEdits = [];
 
     public function boot(): void
@@ -49,22 +49,37 @@ class Index extends Component
     {
         $location = Location::query()->findOrFail($locationId);
         Gate::authorize('update', $location);
-        $data = $this->validate([
-            "locationEdits.{$locationId}.name" => ['required', 'string', 'max:150'],
-            "locationEdits.{$locationId}.is_active" => ['required', 'boolean'],
-        ]);
+        $data = $this->validate(["locationEdits.{$locationId}.name" => ['required', 'string', 'max:150']]);
         $edit = $data['locationEdits'][$locationId];
 
         DB::transaction(function () use ($location, $edit, $logs): void {
-            $oldValues = ['name' => $location->name, 'is_active' => $location->is_active];
+            $oldValues = ['name' => $location->name];
             $location->update($edit);
-            $logs->record(auth()->user(), 'location_updated', $location, $oldValues, [
-                'name' => $location->name,
-                'is_active' => $location->is_active,
-            ]);
+            $logs->record(auth()->user(), 'location_updated', $location, $oldValues, ['name' => $location->name]);
         });
 
         $this->dispatch('app-notification', message: 'Lokasi berhasil diperbarui.', type: 'success');
+    }
+
+    public function toggleLocationActive(int $locationId, ActivityLogService $logs): void
+    {
+        $location = Location::query()->findOrFail($locationId);
+        Gate::authorize('update', $location);
+
+        $isActive = DB::transaction(function () use ($locationId, $logs): bool {
+            $lockedLocation = Location::query()->whereKey($locationId)->lockForUpdate()->firstOrFail();
+            $wasActive = $lockedLocation->is_active;
+            $isActive = ! $wasActive;
+            $lockedLocation->update(['is_active' => $isActive]);
+            $logs->record(auth()->user(), 'location_updated', $lockedLocation,
+                ['is_active' => $wasActive], ['is_active' => $isActive]);
+
+            return $isActive;
+        });
+
+        $this->dispatch('app-notification', message: $isActive
+            ? 'Lokasi berhasil diaktifkan.'
+            : 'Lokasi berhasil dinonaktifkan.', type: 'success');
     }
 
     public function deleteLocation(int $locationId, ActivityLogService $logs): void
@@ -95,7 +110,6 @@ class Index extends Component
         foreach ($locations as $location) {
             $this->locationEdits[$location->id] ??= [
                 'name' => $location->name,
-                'is_active' => $location->is_active,
             ];
         }
 

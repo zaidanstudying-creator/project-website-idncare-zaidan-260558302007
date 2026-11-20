@@ -30,7 +30,7 @@ body { color:var(--ink); font-family:var(--font-sans); }
 .announcement-ticker-close:hover { color:var(--ink); background:#0a1f4410; }
 .announcement-ticker-close:focus-visible { outline:2px solid #0B5FFF; outline-offset:1px; }
 html[data-theme="dark"] .announcement-ticker-close:hover { background:#edf3ff18; }
-.announcement-ticker-public { width:min(100% - 2rem, 72rem); margin:1rem auto 1.5rem; color:#172b49; }
+.announcement-ticker-public { inline-size:100%; margin:1rem 0 1.5rem; padding-inline:clamp(1rem,3vw,3rem); padding-inline-end:3.25rem; color:#172b49; }
 .announcement-ticker-public .announcement-ticker-dot { background:#087e8b; box-shadow:0 0 0 .25rem #087e8b20; }
 html[data-theme="dark"] .announcement-ticker-public { color:#edf3ff; }
 html[data-theme="dark"] .announcement-ticker-public .announcement-ticker-dot { background:#55d6e8; box-shadow:0 0 0 .25rem #55d6e820; }
@@ -206,7 +206,12 @@ html[data-theme="dark"] .announcement-ticker-public .announcement-ticker-dot { b
 .portal-content > form { flex-shrink:0; }
 .portal-content .table-scroll { margin-top:.75rem; }
 .portal-content .empty-state { margin-top:.75rem; }
-.portal-offline-alert { position:sticky; top:0; z-index:80; padding:.8rem 1rem; border-bottom:1px solid #f1c8a9; color:#78350f; background:#fff7ed; text-align:center; font-size:.875rem; line-height:1.5; }
+.network-status-banner { position:fixed; inset-inline:0; inset-block-end:0; z-index:9999; box-sizing:border-box; display:flex; min-height:3.25rem; align-items:center; justify-content:center; padding:.85rem 1rem calc(.85rem + env(safe-area-inset-bottom)); color:#fff; text-align:center; font-size:.95rem; font-weight:750; line-height:1.45; box-shadow:0 -8px 24px #07183133; opacity:0; transform:translateY(100%); transition:opacity .22s ease,transform .22s ease; }
+.network-status-banner[hidden] { display:none; }
+.network-status-banner.is-visible { opacity:1; transform:translateY(0); }
+.network-status-banner[data-state="offline"] { background:#b42318; }
+.network-status-banner[data-state="online"] { background:#15803d; }
+@media(prefers-reduced-motion:reduce) { .network-status-banner { transition:none; } }
 [data-loading] { opacity:.68; pointer-events:none; }
 button[data-loading] { cursor:wait; }
 .state-loading { pointer-events:none; }
@@ -528,9 +533,11 @@ html[data-theme="dark"] .portal-content .report-photo-input::file-selector-butto
 .portal-content .report-photo-input::file-selector-button:hover { background:#084bd1; }
 html[data-theme="dark"] .portal-content .report-photo-help { color:#c5d2e4; }
 .portal-content .report-photo-help { color:#40536f; }
-.portal-content .report-photo-preview-card { position:relative; min-width:0; overflow:hidden; border:1px solid #cbd5e1; border-radius:.85rem; background:#e2e8f0; padding:.35rem; }
+.portal-content .report-photo-preview { display:grid; grid-template-columns:repeat(auto-fill,minmax(6rem,7.5rem)); gap:.75rem; }
+.portal-content .report-photo-preview-card { position:relative; width:100%; min-width:0; overflow:hidden; border:1px solid #cbd5e1; border-radius:.85rem; background:#e2e8f0; padding:.25rem; }
 .portal-content .report-photo-preview-image { display:block; width:100%; aspect-ratio:1; border-radius:.6rem; object-fit:cover; }
-.portal-content .report-photo-preview-remove { position:absolute; top:.55rem; right:.55rem; display:grid; width:2rem; height:2rem; place-items:center; border:1px solid #fff; border-radius:50%; color:#fff; background:#b42332; box-shadow:0 2px 8px #0a1f4440; font-size:1.35rem; font-weight:800; line-height:1; cursor:pointer; }
+.portal-content .report-photo-preview-remove { position:absolute; top:.4rem; right:.4rem; display:grid; width:1.35rem; height:1.35rem; place-items:center; border:1px solid #fff; border-radius:50%; color:#fff; background:#b42332; box-shadow:0 2px 8px #0a1f4440; font:inherit; font-size:.9rem; font-weight:800; line-height:1; cursor:pointer; }
+.portal-content .report-photo-preview-remove::before { position:absolute; inset:-.4rem; content:""; }
 .portal-content .report-photo-preview-remove:hover { background:#8f1725; }
 .portal-content .report-photo-preview-remove:focus-visible { outline:3px solid #0b5fff; outline-offset:2px; }
 html[data-theme="dark"] .portal-content .report-photo-preview-card { border-color:#526984; background:#101a2a; }
@@ -924,8 +931,35 @@ html[data-theme="dark"] .idn-loading-card circle:first-child { stroke:#d6e5fb; }
 /* Keep long tables inside their own scroll area instead of scrolling the page. */
 .table-scroll,
 .overflow-x-auto:has(> table) {
+    min-width:0;
+    max-width:100%;
     max-height:min(70vh, 48rem);
-    overflow:auto;
+    overflow-x:auto;
+    overflow-y:auto;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+    --table-scrollbar-thumb:#64748b;
+    --table-scrollbar-track:#e2e8f0;
+    scrollbar-color:var(--table-scrollbar-thumb) var(--table-scrollbar-track);
+    scrollbar-width:auto;
+}
+.table-scroll-hint { margin:.35rem .25rem 0; color:var(--muted); font-size:.76rem; text-align:end; }
+.table-scroll-hint[hidden] { display:none; }
+@supports not (scrollbar-color:auto) {
+    .table-scroll::-webkit-scrollbar,
+    .overflow-x-auto:has(> table)::-webkit-scrollbar { width:12px; height:12px; }
+    .table-scroll::-webkit-scrollbar-thumb,
+    .overflow-x-auto:has(> table)::-webkit-scrollbar-thumb { border:3px solid var(--table-scrollbar-track); border-radius:999px; background:var(--table-scrollbar-thumb); }
+    .table-scroll::-webkit-scrollbar-track,
+    .overflow-x-auto:has(> table)::-webkit-scrollbar-track { border-radius:999px; background:var(--table-scrollbar-track); }
+}
+html[data-theme="dark"] .table-scroll,
+html[data-theme="dark"] .overflow-x-auto:has(> table) { --table-scrollbar-thumb:#9aacc5; --table-scrollbar-track:#26364e; }
+@media(prefers-contrast:more) {
+    .table-scroll,
+    .overflow-x-auto:has(> table) { --table-scrollbar-thumb:#172033; --table-scrollbar-track:#fff; }
+    html[data-theme="dark"] .table-scroll,
+    html[data-theme="dark"] .overflow-x-auto:has(> table) { --table-scrollbar-thumb:#fff; --table-scrollbar-track:#172033; }
 }
 
 html[data-theme="dark"] .portal-dialog .report-dialog-tabs {

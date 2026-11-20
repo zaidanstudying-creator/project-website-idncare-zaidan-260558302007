@@ -2,8 +2,10 @@
 
 use App\Enums\UserRole;
 use App\Livewire\Pages\Admin\Users\Index as AdminUsersIndex;
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -51,7 +53,7 @@ it('lets super admins search and filter accounts without leaving the account pag
 
     Livewire::test('components.admin.user-table')
         ->assertSee($matchingStudent->user_code)
-        ->assertSee('Edit informasi mahasiswa')
+        ->assertSee('Edit informasi akun')
         ->assertSee('Mahasiswa Nonaktif')
         ->assertSee('Admin Sarpras')
         ->set('search', 'MHS-LIVE-7')
@@ -152,4 +154,53 @@ it('paginates account results in batches of twenty', function (): void {
         ->assertDontSee('USR-21')
         ->call('nextPage')
         ->assertSee('USR-21');
+});
+
+it('permanently deletes an account with no report or activity history', function (): void {
+    $admin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+    $target = User::factory()->create([
+        'user_code' => 'MHS-REMOVE-01',
+        'role' => UserRole::MAHASISWA,
+        'must_change_password' => false,
+    ]);
+    $notification = $target->notifications()->create([
+        'id' => (string) Str::uuid(),
+        'type' => 'test-notification',
+        'data' => ['message' => 'Notifikasi uji'],
+    ]);
+
+    Livewire::actingAs($admin)->test('components.admin.user-table')
+        ->call('deleteUser', $target->id)
+        ->assertDispatched('app-notification', message: 'Akun berhasil dihapus permanen.', type: 'success');
+
+    expect(User::query()->whereKey($target->id)->exists())->toBeFalse()
+        ->and($notification->fresh())->toBeNull();
+    $this->assertDatabaseHas('activity_logs', [
+        'user_id' => $admin->id,
+        'action' => 'user_deleted',
+        'subject_id' => $target->id,
+    ]);
+});
+
+it('protects accounts referenced by immutable activity logs from permanent deletion', function (): void {
+    $admin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+    $target = User::factory()->create(['must_change_password' => false]);
+    ActivityLog::query()->create([
+        'user_id' => $target->id,
+        'role' => UserRole::MAHASISWA->value,
+        'action' => 'login',
+    ]);
+
+    Livewire::actingAs($admin)->test('components.admin.user-table')
+        ->call('deleteUser', $target->id)
+        ->assertDispatched('app-notification', type: 'error');
+
+    expect(User::query()->whereKey($target->id)->exists())->toBeTrue()
+        ->and(ActivityLog::query()->where('user_id', $target->id)->exists())->toBeTrue();
 });

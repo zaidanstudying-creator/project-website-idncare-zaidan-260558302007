@@ -31,27 +31,25 @@
         </div>
     </div>
 
-    <div class="overflow-x-auto">
-        <table class="w-full min-w-[760px] text-left text-sm">
+    <div class="table-scroll" tabindex="0" role="region" aria-labelledby="users-table-title">
+        <table class="w-full min-w-[960px] text-left text-sm">
             <caption class="sr-only">Daftar akun pengguna yang bisa dicari dan difilter</caption>
             <thead class="bg-blue-50 text-slate-600"><tr><th scope="col" class="p-4">ID pengguna</th><th scope="col" class="p-4">Nama</th><th scope="col" class="p-4">Peran</th><th scope="col" class="p-4">Unit / prodi</th><th scope="col" class="p-4">Status</th><th scope="col" class="p-4">Tindakan</th></tr></thead>
             <tbody class="divide-y divide-blue-50">
                 @forelse ($users as $user)
                     <tr wire:key="user-{{ $user->id }}">
-                        <td class="p-4 font-semibold">{{ $user->user_code }}</td>
-                        <td class="p-4">{{ $user->name }}</td>
-                        <td class="p-4">{{ str_replace('_', ' ', $user->role->value) }}</td>
-                        <td class="p-4">{{ $user->unit_or_prodi ?: '—' }}</td>
-                        <td class="p-4">{{ $user->is_active ? 'Aktif' : 'Nonaktif' }}{{ $user->must_change_password ? ' · wajib ganti password' : '' }}</td>
-                        <td class="p-4">
-                            <div class="flex flex-wrap gap-2">
+                        <td class="whitespace-nowrap p-4 font-semibold">{{ $user->user_code }}</td>
+                        <td class="whitespace-nowrap p-4">{{ $user->name }}</td>
+                        <td class="whitespace-nowrap p-4">{{ str_replace('_', ' ', $user->role->value) }}</td>
+                        <td class="whitespace-nowrap p-4">{{ $user->unit_or_prodi ?: '—' }}</td>
+                        <td class="whitespace-nowrap p-4">{{ $user->is_active ? 'Aktif' : 'Nonaktif' }}{{ $user->must_change_password ? ' · wajib ganti password' : '' }}</td>
+                        <td class="whitespace-nowrap p-4">
+                            <div class="grid w-max grid-cols-4 items-center gap-2">
                                 @if (!auth()->user()->is($user))
-                                    @if ($user->role === \App\Enums\UserRole::MAHASISWA)
-                                        <a href="{{ route('admin.users.edit', $user) }}" aria-label="Edit informasi mahasiswa {{ $user->name }}" title="Edit informasi mahasiswa" class="inline-flex size-9 items-center justify-center rounded-xl border border-cyan-200 text-cyan-700 transition hover:bg-cyan-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600">
-                                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/><path stroke-linecap="round" d="M14.8 5.2 18 8.4"/></svg>
-                                            <span class="sr-only">Edit informasi mahasiswa</span>
-                                        </a>
-                                    @endif
+                                    <a href="{{ route('admin.users.edit', $user) }}" aria-label="Edit informasi akun {{ $user->name }}" title="Edit informasi akun" class="inline-flex size-9 items-center justify-center rounded-xl border border-cyan-200 text-cyan-700 transition hover:bg-cyan-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/><path stroke-linecap="round" d="M14.8 5.2 18 8.4"/></svg>
+                                        <span class="sr-only">Edit informasi akun</span>
+                                    </a>
                                         <button type="button" wire:click="resetPassword({{ $user->id }})" wire:confirm="Reset password {{ $user->name }}? Password baru akan tampil satu kali dan akun wajib menggantinya setelah masuk." aria-label="Reset password {{ $user->name }}" title="Reset password" class="inline-flex size-9 items-center justify-center rounded-xl border border-blue-200 text-blue-700 transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
                                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M4 10a8 8 0 0 1 14-5l2 2m0-4v4h-4"/><rect x="8" y="12" width="8" height="7" rx="1.5"/><path stroke-linecap="round" d="M10 12v-2a2 2 0 1 1 4 0v2"/></svg>
                                             <span class="sr-only">Reset password</span>
@@ -67,6 +65,15 @@
                                                 <span class="sr-only">Aktifkan kembali</span>
                                             </button>
                                     @endif
+                                    <button type="button" wire:click="deleteUser({{ $user->id }})" wire:confirm="Hapus permanen akun {{ $user->name }}? Tindakan ini tidak dapat dibatalkan. Akun yang memiliki riwayat laporan atau aktivitas akan tetap dilindungi." aria-label="Hapus permanen akun {{ $user->name }}" title="Hapus permanen akun" class="inline-flex size-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-4"><path d="M3 6h18m-2 0-.9 14H5.9L5 6m4 0V4h6v2m-5 6v5m4-5v5"/></svg>
+                                        <span class="sr-only">Hapus permanen</span>
+                                    </button>
+                                @else
+                                    <span aria-hidden="true" class="size-9"></span>
+                                    <span aria-hidden="true" class="size-9"></span>
+                                    <span aria-hidden="true" class="size-9"></span>
+                                    <span aria-hidden="true" class="size-9"></span>
                                 @endif
                             </div>
                         </td>

@@ -80,6 +80,77 @@ const applyThemePreference = ({ persist = false } = {}) => {
 };
 applyThemePreference();
 
+const networkStatusBanner = document.getElementById('network-status-banner');
+let networkStatusDismissTimer = null;
+let networkStatusTransitionTimer = null;
+const showNetworkStatus = (state) => {
+    if (!(networkStatusBanner instanceof HTMLElement)) return;
+
+    if (networkStatusDismissTimer !== null) {
+        window.clearTimeout(networkStatusDismissTimer);
+        networkStatusDismissTimer = null;
+    }
+    if (networkStatusTransitionTimer !== null) {
+        window.clearTimeout(networkStatusTransitionTimer);
+        networkStatusTransitionTimer = null;
+    }
+
+    networkStatusBanner.dataset.state = state;
+    networkStatusBanner.textContent = state === 'offline'
+        ? '⚠️ Koneksi internet terputus. Beberapa fitur mungkin tidak bisa digunakan.'
+        : '✅ Yeay, internetnya tersambung lagi nih!';
+    networkStatusBanner.hidden = false;
+    requestAnimationFrame(() => networkStatusBanner.classList.add('is-visible'));
+
+    if (state === 'online') {
+        networkStatusDismissTimer = window.setTimeout(() => {
+            networkStatusBanner.classList.remove('is-visible');
+            networkStatusTransitionTimer = window.setTimeout(() => {
+                networkStatusBanner.hidden = true;
+                networkStatusBanner.textContent = '';
+                networkStatusTransitionTimer = null;
+            }, 250);
+            networkStatusDismissTimer = null;
+        }, 5000);
+    }
+};
+
+window.addEventListener('offline', () => showNetworkStatus('offline'));
+window.addEventListener('online', () => showNetworkStatus('online'));
+if (!navigator.onLine) showNetworkStatus('offline');
+
+const refreshTableScrollHints = (root = document) => {
+    root.querySelectorAll('.table-scroll, .overflow-x-auto:has(> table)').forEach((tableScroller) => {
+        if (!(tableScroller instanceof HTMLElement)) return;
+
+        let hint = tableScroller.nextElementSibling;
+        if (!(hint instanceof HTMLElement) || !hint.classList.contains('table-scroll-hint')) {
+            hint = document.createElement('p');
+            hint.className = 'table-scroll-hint';
+            hint.setAttribute('aria-hidden', 'true');
+            hint.textContent = 'Geser tabel ke samping untuk melihat kolom lainnya';
+            tableScroller.after(hint);
+        }
+
+        const updateHint = () => {
+            hint.hidden = tableScroller.scrollWidth <= tableScroller.clientWidth + 1;
+        };
+
+        if (tableScroller.dataset.scrollHintReady !== 'true') {
+            tableScroller.dataset.scrollHintReady = 'true';
+            tableScroller.addEventListener('scroll', updateHint, { passive: true });
+            if ('ResizeObserver' in window) {
+                const resizeObserver = new ResizeObserver(updateHint);
+                resizeObserver.observe(tableScroller);
+                if (tableScroller.firstElementChild) resizeObserver.observe(tableScroller.firstElementChild);
+            }
+        }
+        updateHint();
+    });
+};
+refreshTableScrollHints();
+new MutationObserver(() => refreshTableScrollHints()).observe(document.body, { childList: true, subtree: true });
+
 const globalLoadingIndicator = document.querySelector('#global-loading-indicator');
 let pendingLoadingSources = 0;
 let loadingDelayTimer = null;
@@ -568,6 +639,10 @@ document.addEventListener('click', (event) => {
     const closeButton = event.target.closest('[data-dialog-close]');
     if (closeButton instanceof HTMLButtonElement) closeButton.closest('dialog')?.close();
 });
+window.addEventListener('account-created', () => {
+    const createUserDialog = document.getElementById('create-user-dialog');
+    if (createUserDialog instanceof HTMLDialogElement && createUserDialog.open) createUserDialog.close();
+});
 document.querySelectorAll('[data-report-tab]').forEach((tab) => {
     tab.addEventListener('click', (event) => {
         event.preventDefault();
@@ -620,12 +695,109 @@ document.querySelectorAll('[data-password-toggle]').forEach((button) => {
 const reportPhotoInput = document.querySelector('#photos[data-file-preview]');
 if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
     const reportForm = reportPhotoInput.form;
+    const preview = document.getElementById(reportPhotoInput.dataset.filePreview);
     const uploadStatus = reportForm.querySelector('[data-photo-upload-status]');
     const submitButtons = [...reportForm.querySelectorAll('button[type="submit"], input[type="submit"]')];
     const maxPhotoPayloadBytes = 1.3 * 1024 * 1024;
+    const maxPhotoCount = 5;
+    const draftLifetimeMs = 24 * 60 * 60 * 1000;
+    const draftKey = `idn-care-report-photos:${reportPhotoInput.dataset.filePreviewUser}:${reportPhotoInput.dataset.filePreviewType}`;
+    let selectedPhotos = [];
+    let previewUrls = [];
     let isOptimizingPhotos = false;
+    let allowNextChangeEvent = false;
+    let hasUserChangedPhotos = false;
+    let photoDraftDatabasePromise = null;
+    let draftWrite = Promise.resolve();
 
     const formatFileSize = (bytes) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    const fileSignature = (file) => `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+    const setInputFiles = (files) => {
+        const transfer = new DataTransfer();
+        files.forEach((file) => transfer.items.add(file));
+        reportPhotoInput.files = transfer.files;
+    };
+    const dispatchInputChange = () => {
+        allowNextChangeEvent = true;
+        reportPhotoInput.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const renderPhotoPreview = () => {
+        if (!preview) return;
+        previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        previewUrls = [];
+        preview.replaceChildren();
+
+        selectedPhotos.forEach((file, index) => {
+            const url = URL.createObjectURL(file);
+            previewUrls.push(url);
+            const card = document.createElement('div');
+            card.className = 'report-photo-preview-card';
+            const image = document.createElement('img');
+            image.src = url;
+            image.alt = `Pratinjau ${file.name}`;
+            image.className = 'report-photo-preview-image';
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'report-photo-preview-remove';
+            removeButton.dataset.photoIndex = String(index);
+            removeButton.setAttribute('aria-label', `Hapus foto ${file.name}`);
+            removeButton.title = 'Hapus foto';
+            removeButton.textContent = '×';
+            card.append(image, removeButton);
+            preview.append(card);
+        });
+    };
+    const openPhotoDraftDatabase = () => {
+        if (!photoDraftDatabasePromise) {
+            photoDraftDatabasePromise = new Promise((resolve, reject) => {
+                if (!window.indexedDB) {
+                    reject(new Error('Penyimpanan draf foto tidak didukung browser ini.'));
+                    return;
+                }
+
+                const request = window.indexedDB.open('idn-care-report-photo-drafts', 1);
+                request.onupgradeneeded = () => request.result.createObjectStore('drafts', { keyPath: 'key' });
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        return photoDraftDatabasePromise;
+    };
+    const readPhotoDraft = async () => {
+        const database = await openPhotoDraftDatabase();
+        return new Promise((resolve, reject) => {
+            const request = database.transaction('drafts', 'readonly').objectStore('drafts').get(draftKey);
+            request.onsuccess = () => resolve(request.result ?? null);
+            request.onerror = () => reject(request.error);
+        });
+    };
+    const writePhotoDraft = (files) => {
+        draftWrite = draftWrite.catch(() => {}).then(async () => {
+            const database = await openPhotoDraftDatabase();
+            await new Promise((resolve, reject) => {
+                const transaction = database.transaction('drafts', 'readwrite');
+                const store = transaction.objectStore('drafts');
+                if (files.length === 0) {
+                    store.delete(draftKey);
+                } else {
+                    store.put({ key: draftKey, updatedAt: Date.now(), files });
+                }
+                transaction.oncomplete = resolve;
+                transaction.onerror = () => reject(transaction.error);
+                transaction.onabort = () => reject(transaction.error);
+            });
+        });
+        return draftWrite;
+    };
+    const persistPhotoDraft = async (files) => {
+        try {
+            await writePhotoDraft(files);
+            return true;
+        } catch {
+            return false;
+        }
+    };
     const encodePhoto = async (file, maxDimension, quality) => {
         if (!file.type.startsWith('image/') || file.size <= 150 * 1024) return file;
 
@@ -652,112 +824,147 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
         }
     };
 
-    reportPhotoInput.addEventListener('change', async () => {
-        if (isOptimizingPhotos) return;
+    const optimizePhotos = async (files) => {
+        const originalSize = files.reduce((total, file) => total + file.size, 0);
+        if (originalSize <= maxPhotoPayloadBytes) return { files, originalSize, optimizedSize: originalSize };
 
-        const selectedFiles = [...(reportPhotoInput.files ?? [])];
-        const originalSize = selectedFiles.reduce((total, file) => total + file.size, 0);
-        if (selectedFiles.length === 0) {
-            uploadStatus.textContent = 'Unggahan foto dibatasi agar laporan bisa terkirim dengan lancar.';
+        const compressionSteps = [
+            { maxDimension: 1920, quality: 0.82 },
+            { maxDimension: 1600, quality: 0.74 },
+            { maxDimension: 1440, quality: 0.66 },
+            { maxDimension: 1280, quality: 0.58 },
+            { maxDimension: 1120, quality: 0.5 },
+            { maxDimension: 960, quality: 0.42 },
+        ];
+        let optimizedFiles = files;
+        for (const step of compressionSteps) {
+            optimizedFiles = [];
+            for (const file of files) optimizedFiles.push(await encodePhoto(file, step.maxDimension, step.quality));
+            if (optimizedFiles.reduce((total, file) => total + file.size, 0) <= maxPhotoPayloadBytes) break;
+        }
+
+        const optimizedSize = optimizedFiles.reduce((total, file) => total + file.size, 0);
+        if (optimizedSize > maxPhotoPayloadBytes) {
+            throw new Error('Ukuran foto masih terlalu besar. Pilih lebih sedikit foto atau kecilkan ukuran fotonya.');
+        }
+
+        return { files: optimizedFiles, originalSize, optimizedSize };
+    };
+
+    reportPhotoInput.addEventListener('change', async (event) => {
+        if (allowNextChangeEvent) {
+            allowNextChangeEvent = false;
             return;
         }
-        if (originalSize <= maxPhotoPayloadBytes) {
-            uploadStatus.textContent = `${selectedFiles.length} foto dipilih · ${formatFileSize(originalSize)}.`;
+
+        event.stopImmediatePropagation();
+        hasUserChangedPhotos = true;
+        if (isOptimizingPhotos) {
+            setInputFiles(selectedPhotos);
+            uploadStatus.textContent = 'Tunggu sampai foto selesai diproses sebelum memilih foto lain.';
             return;
         }
 
+        const incomingFiles = [...(reportPhotoInput.files ?? [])];
+        if (incomingFiles.length === 0) return;
+        const existingSignatures = new Set(selectedPhotos.map(fileSignature));
+        const uniqueIncoming = incomingFiles.filter((file) => !existingSignatures.has(fileSignature(file)));
+        const availableSlots = Math.max(0, maxPhotoCount - selectedPhotos.length);
+        const acceptedIncoming = uniqueIncoming.slice(0, availableSlots);
+        const overflowCount = uniqueIncoming.length - acceptedIncoming.length;
+        if (acceptedIncoming.length === 0) {
+            setInputFiles(selectedPhotos);
+            dispatchInputChange();
+            uploadStatus.textContent = overflowCount > 0 ? 'Maksimal lima foto dapat dipilih.' : 'Foto tersebut sudah dipilih.';
+            return;
+        }
+
+        const previousPhotos = selectedPhotos;
         isOptimizingPhotos = true;
         reportPhotoInput.setAttribute('aria-busy', 'true');
         submitButtons.forEach((button) => { button.disabled = true; });
-        uploadStatus.textContent = `Mengoptimalkan ${selectedFiles.length} foto agar dapat dikirim…`;
+        preview?.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+        uploadStatus.textContent = `Menyiapkan ${acceptedIncoming.length} foto…`;
 
         try {
-            let optimizedFiles = selectedFiles;
-            const compressionSteps = [
-                { maxDimension: 1920, quality: 0.82 },
-                { maxDimension: 1600, quality: 0.74 },
-                { maxDimension: 1440, quality: 0.66 },
-                { maxDimension: 1280, quality: 0.58 },
-                { maxDimension: 1120, quality: 0.5 },
-                { maxDimension: 960, quality: 0.42 },
-            ];
-
-            for (const step of compressionSteps) {
-                const compressed = [];
-                for (const file of selectedFiles) {
-                    compressed.push(await encodePhoto(file, step.maxDimension, step.quality));
-                }
-                optimizedFiles = compressed;
-                if (optimizedFiles.reduce((total, file) => total + file.size, 0) <= maxPhotoPayloadBytes) break;
-            }
-
-            const optimizedSize = optimizedFiles.reduce((total, file) => total + file.size, 0);
-            if (optimizedSize > maxPhotoPayloadBytes) {
-                throw new Error('Ukuran foto masih terlalu besar. Pilih lebih sedikit foto atau kecilkan ukuran fotonya.');
-            }
-
-            const transfer = new DataTransfer();
-            optimizedFiles.forEach((file) => transfer.items.add(file));
-            reportPhotoInput.files = transfer.files;
-            uploadStatus.textContent = `Ukuran foto diperkecil dari ${formatFileSize(originalSize)} menjadi ${formatFileSize(optimizedSize)}.`;
-            reportPhotoInput.dispatchEvent(new Event('change', { bubbles: true }));
+            const result = await optimizePhotos([...selectedPhotos, ...acceptedIncoming]);
+            selectedPhotos = result.files;
+            setInputFiles(selectedPhotos);
+            renderPhotoPreview();
+            const draftSaved = await persistPhotoDraft(selectedPhotos);
+            const overflowMessage = overflowCount > 0 ? ' Maksimal lima foto; sisanya tidak ditambahkan.' : '';
+            const statusMessage = result.optimizedSize < result.originalSize
+                ? `Ukuran ${selectedPhotos.length} foto diperkecil dari ${formatFileSize(result.originalSize)} menjadi ${formatFileSize(result.optimizedSize)}.${overflowMessage}`
+                : `${selectedPhotos.length} foto dipilih · ${formatFileSize(result.optimizedSize)}.${overflowMessage}`;
+            uploadStatus.textContent = draftSaved ? statusMessage : `${statusMessage} Draf tidak bisa disimpan di browser ini; jangan muat ulang halaman.`;
+            dispatchInputChange();
         } catch (error) {
-            reportPhotoInput.value = '';
+            selectedPhotos = previousPhotos;
+            setInputFiles(selectedPhotos);
+            renderPhotoPreview();
             uploadStatus.textContent = error instanceof Error
                 ? error.message
                 : 'Foto tidak dapat diproses. Pilih foto lain dengan ukuran lebih kecil.';
-            reportPhotoInput.dispatchEvent(new Event('change', { bubbles: true }));
+            dispatchInputChange();
         } finally {
             isOptimizingPhotos = false;
             reportPhotoInput.removeAttribute('aria-busy');
             submitButtons.forEach((button) => { button.disabled = false; });
+            preview?.querySelectorAll('button').forEach((button) => { button.disabled = false; });
         }
-    });
+    }, true);
 
     reportForm.addEventListener('submit', (event) => {
         if (!isOptimizingPhotos) return;
         event.preventDefault();
         uploadStatus.textContent = 'Tunggu sampai foto selesai dioptimalkan sebelum mengirim laporan.';
     });
-}
+    preview?.addEventListener('click', async (event) => {
+        const removeButton = event.target.closest('[data-photo-index]');
+        if (!(removeButton instanceof HTMLButtonElement)) return;
 
-document.querySelectorAll('[data-file-preview]').forEach((input) => {
-    const preview = document.getElementById(input.dataset.filePreview);
-    if (!(input instanceof HTMLInputElement) || !preview) return;
-    let urls = [];
-    input.addEventListener('change', () => {
-        urls.forEach((url) => URL.revokeObjectURL(url)); urls = []; preview.replaceChildren();
-        const selectedFiles = [...(input.files ?? [])];
-        selectedFiles.filter((file) => file.type.startsWith('image/')).forEach((file) => {
-            const fileIndex = selectedFiles.indexOf(file);
-            const url = URL.createObjectURL(file); urls.push(url);
-            const card = document.createElement('div');
-            card.className = 'report-photo-preview-card';
-            const image = document.createElement('img'); image.src = url; image.alt = `Pratinjau ${file.name}`;
-            image.className = 'report-photo-preview-image';
-            const removeButton = document.createElement('button');
-            removeButton.type = 'button';
-            removeButton.className = 'report-photo-preview-remove';
-            removeButton.setAttribute('aria-label', `Hapus foto ${file.name}`);
-            removeButton.title = 'Hapus foto';
-            removeButton.textContent = '×';
-            removeButton.addEventListener('click', () => {
-                const transfer = new DataTransfer();
-                [...(input.files ?? [])].forEach((selectedFile, selectedIndex) => {
-                    if (selectedIndex !== fileIndex) transfer.items.add(selectedFile);
-                });
-                input.files = transfer.files;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            });
-            card.append(image, removeButton);
-            preview.append(card);
-            animateIfAllowed(image, [
-                { opacity: 0, transform: 'scale(.96)' },
-                { opacity: 1, transform: 'scale(1)' },
-            ], { duration: 200 });
-        });
+        selectedPhotos.splice(Number(removeButton.dataset.photoIndex), 1);
+        setInputFiles(selectedPhotos);
+        renderPhotoPreview();
+        await persistPhotoDraft(selectedPhotos);
+        uploadStatus.textContent = selectedPhotos.length > 0
+            ? `${selectedPhotos.length} foto dipilih.`
+            : 'Unggahan foto dibatasi agar laporan bisa terkirim dengan lancar.';
+        dispatchInputChange();
     });
-});
+    window.addEventListener('report-submitted', () => {
+        selectedPhotos = [];
+        previewUrls.forEach((url) => URL.revokeObjectURL(url));
+        previewUrls = [];
+        preview?.replaceChildren();
+        try {
+            sessionStorage.setItem('idn-care-report-photos-submitted', draftKey);
+        } catch {}
+        writePhotoDraft([]).catch(() => {});
+    }, { once: true });
+
+    readPhotoDraft().then(async (draft) => {
+        if (hasUserChangedPhotos) return;
+        if (!draft || !Array.isArray(draft.files)) return;
+        if (Date.now() - draft.updatedAt > draftLifetimeMs) {
+            await persistPhotoDraft([]);
+            return;
+        }
+        try {
+            if (sessionStorage.getItem('idn-care-report-photos-submitted') === draftKey) {
+                sessionStorage.removeItem('idn-care-report-photos-submitted');
+                await persistPhotoDraft([]);
+                return;
+            }
+        } catch {}
+
+        selectedPhotos = draft.files.slice(0, maxPhotoCount);
+        setInputFiles(selectedPhotos);
+        renderPhotoPreview();
+        uploadStatus.textContent = `${selectedPhotos.length} foto draf dipulihkan dari perangkat ini.`;
+        dispatchInputChange();
+    }).catch(() => {});
+}
 
 const chartDataElement = document.getElementById('dashboard-chart-data');
 

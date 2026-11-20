@@ -9,7 +9,7 @@ use App\Livewire\Pages\Admin\Locations\Index as AdminLocationsIndex;
 use App\Livewire\Pages\Admin\Reports\Index as AdminReportsIndex;
 use App\Livewire\Pages\Admin\Reports\Show as AdminReportShow;
 use App\Livewire\Pages\Admin\Settings\Index as AdminSettingsIndex;
-use App\Livewire\Pages\Admin\Users\EditStudent as AdminUsersEditStudent;
+use App\Livewire\Pages\Admin\Users\EditAccount as AdminUsersEditAccount;
 use App\Livewire\Pages\Admin\Users\Import as AdminUsersImport;
 use App\Livewire\Pages\Admin\Users\Index as AdminUsersIndex;
 use App\Livewire\Pages\Auth\Login as LoginPage;
@@ -92,7 +92,7 @@ Route::middleware(['auth', 'account.session', 'force.password.change', 'role:sup
     ->group(function (): void {
         Route::livewire('/settings', AdminSettingsIndex::class)->name('settings.index');
         Route::livewire('/users', AdminUsersIndex::class)->name('users.index');
-        Route::livewire('/users/{user}/edit', AdminUsersEditStudent::class)->name('users.edit');
+        Route::livewire('/users/{user}/edit', AdminUsersEditAccount::class)->name('users.edit');
         Route::livewire('/users/import', AdminUsersImport::class)->name('users.import');
         Route::livewire('/archive', AdminArchiveIndex::class)->name('archive.index');
     });

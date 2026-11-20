@@ -96,11 +96,11 @@ it('limits category management to the report types assigned to each unit', funct
         ->assertSee('Keamanan');
 
     Livewire::actingAs($sarpras)->test(AdminCategoriesIndex::class)
-        ->call('updateCategory', $aspirationCategory->id)
+        ->call('toggleCategoryActive', $aspirationCategory->id)
         ->assertForbidden();
 
     Livewire::actingAs($kemahasiswaan)->test(AdminCategoriesIndex::class)
-        ->call('updateCategory', $facilityCategory->id)
+        ->call('toggleCategoryActive', $facilityCategory->id)
         ->assertForbidden();
 
     expect($violationCategory->fresh()->name)->toBe('Keamanan');
@@ -178,7 +178,6 @@ it('allows both unit admins and super admin to manage locations', function (): v
 
     Livewire::actingAs($kemahasiswaan)->test(AdminLocationsIndex::class)
         ->set("locationEdits.{$location->id}.name", 'Gedung Baru Timur')
-        ->set("locationEdits.{$location->id}.is_active", true)
         ->call('updateLocation', $location->id)
         ->assertHasNoErrors();
 
@@ -187,15 +186,18 @@ it('allows both unit admins and super admin to manage locations', function (): v
 
     Livewire::actingAs($superAdmin)->test(AdminLocationsIndex::class)
         ->set("locationEdits.{$location->id}.name", 'Gedung Baru Utama')
-        ->set("locationEdits.{$location->id}.is_active", false)
         ->call('updateLocation', $location->id)
+        ->assertHasNoErrors();
+
+    Livewire::actingAs($superAdmin)->test(AdminLocationsIndex::class)
+        ->call('toggleLocationActive', $location->id)
         ->assertHasNoErrors();
 
     expect($location->fresh()->name)->toBe('Gedung Baru Utama')
         ->and($location->fresh()->is_active)->toBeFalse();
 });
 
-it('deactivates used categories and locations without deleting referenced master data', function (): void {
+it('toggles used categories and locations without deleting referenced master data', function (): void {
     $type = ReportType::create(['code' => ReportType::FACILITAS, 'name' => 'Laporan Fasilitas']);
     $category = Category::create([
         'report_type_id' => $type->id,
@@ -221,13 +223,17 @@ it('deactivates used categories and locations without deleting referenced master
 
     Livewire::actingAs($admin)->test(AdminCategoriesIndex::class)
         ->set("categoryEdits.{$category->id}.name", 'Plumbing')
-        ->set("categoryEdits.{$category->id}.is_active", false)
         ->call('updateCategory', $category->id)
         ->assertHasNoErrors();
     Livewire::actingAs($admin)->test(AdminLocationsIndex::class)
         ->set("locationEdits.{$location->id}.name", 'Gedung Lama')
-        ->set("locationEdits.{$location->id}.is_active", false)
         ->call('updateLocation', $location->id)
+        ->assertHasNoErrors();
+    Livewire::actingAs($admin)->test(AdminCategoriesIndex::class)
+        ->call('toggleCategoryActive', $category->id)
+        ->assertHasNoErrors();
+    Livewire::actingAs($admin)->test(AdminLocationsIndex::class)
+        ->call('toggleLocationActive', $location->id)
         ->assertHasNoErrors();
 
     expect($category->fresh()->is_active)->toBeFalse()
@@ -236,6 +242,16 @@ it('deactivates used categories and locations without deleting referenced master
         ->and($report->fresh()->location_id)->toBe($location->id)
         ->and(Category::query()->whereKey($category->id)->exists())->toBeTrue()
         ->and(Location::query()->whereKey($location->id)->exists())->toBeTrue();
+
+    Livewire::actingAs($admin)->test(AdminCategoriesIndex::class)
+        ->call('toggleCategoryActive', $category->id)
+        ->assertHasNoErrors();
+    Livewire::actingAs($admin)->test(AdminLocationsIndex::class)
+        ->call('toggleLocationActive', $location->id)
+        ->assertHasNoErrors();
+
+    expect($category->fresh()->is_active)->toBeTrue()
+        ->and($location->fresh()->is_active)->toBeTrue();
 });
 
 it('validates category and location fields before storing', function (): void {

@@ -45,6 +45,14 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
     $type = createReportType(ReportType::FACILITAS);
     $category = createCategoryFor($type);
     $location = Location::query()->create(['name' => 'Gedung Utama', 'is_active' => true]);
+    $sarpras = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
+    $kemahasiswaan = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
+    $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
+    $inactiveSarpras = User::factory()->create([
+        'role' => UserRole::ADMIN_SARPRAS,
+        'is_active' => false,
+        'must_change_password' => false,
+    ]);
 
     Livewire::actingAs($student)->test(CreateForm::class, ['type' => $type->code])
         ->set('title', 'Lampu lorong mati')
@@ -54,7 +62,7 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
         ->set('photos', [UploadedFile::fake()->image('lampu.jpg')])
         ->set('requestedVisibility', 'umum')
         ->set('isAnonymous', true)
-        ->call('submit')->assertHasNoErrors()->assertRedirect(route('reports.index'));
+        ->call('submit')->assertHasNoErrors()->assertDispatched('report-submitted')->assertRedirect(route('reports.index'));
     $report = Report::query()->sole();
     $attachment = ReportAttachment::query()->sole();
     $history = ReportStatusHistory::query()->sole();
@@ -73,15 +81,23 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
         ->and($history->to_status)->toBe(Report::STATUS_DIKIRIM)
         ->and($history->changed_by)->toBe($student->id);
 
+    $adminNotification = $sarpras->notifications()->sole();
+    expect($adminNotification->data)->toMatchArray([
+        'report_id' => $report->id,
+        'ticket_no' => $report->ticket_no,
+        'report_type' => ReportType::FACILITAS,
+        'status' => Report::STATUS_DIKIRIM,
+        'message' => 'Laporan baru masuk dan menunggu peninjauan.',
+    ])->and(array_keys($adminNotification->data))->not->toContain('title', 'description', 'reporter_id')
+        ->and($superAdmin->notifications()->count())->toBe(1)
+        ->and($kemahasiswaan->notifications()->count())->toBe(0)
+        ->and($inactiveSarpras->notifications()->count())->toBe(0)
+        ->and($student->notifications()->sole()->data['message'])->toBe('Laporan berhasil dikirim.');
+
     Storage::disk('local')->assertExists($attachment->file_path);
     Storage::disk('public')->assertMissing($attachment->file_path);
 
-    $admin = User::factory()->create([
-        'role' => UserRole::ADMIN_SARPRAS,
-        'must_change_password' => false,
-    ]);
-
-    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])
+    $this->actingAs($sarpras)->withSession(['auth_version' => $sarpras->auth_version])
         ->get(route('admin.reports.show', $report))
         ->assertOk()
         ->assertSee(route('attachments.show', $attachment), false)
@@ -124,6 +140,9 @@ it('stores anonymous violations without reporter identity in related records', f
     $type = createReportType(ReportType::PELANGGARAN);
     $category = createCategoryFor($type);
     $location = Location::query()->create(['name' => 'Perpustakaan', 'is_active' => true]);
+    $kemahasiswaan = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
+    $sarpras = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
+    $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
 
     Livewire::actingAs($student)->test(CreateForm::class, ['type' => $type->code])
         ->set('title', 'Dugaan kejadian')
@@ -159,6 +178,11 @@ it('stores anonymous violations without reporter identity in related records', f
         ->and($activityLog->new_values)->toBe(['status' => Report::STATUS_DIKIRIM, 'report_type' => ReportType::PELANGGARAN])
         ->and($anonymousLogs->pluck('user_id')->unique()->all())->toBe([null])
         ->and($anonymousLogs->pluck('ip_address')->unique()->all())->toBe([null]);
+
+    expect($kemahasiswaan->notifications()->sole()->data['message'])->toBe('Laporan baru masuk dan menunggu peninjauan.')
+        ->and($superAdmin->notifications()->count())->toBe(1)
+        ->and($sarpras->notifications()->count())->toBe(0)
+        ->and($student->notifications()->count())->toBe(0);
 
     Storage::disk('local')->assertExists($attachment->file_path);
 });

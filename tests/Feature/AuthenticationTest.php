@@ -90,7 +90,14 @@ it('forces a first-login password change before protected pages', function (): v
         ->set('password', 'a-new-secure-password')
         ->set('password_confirmation', 'a-new-secure-password')
         ->call('savePassword')
-        ->assertRedirect(route('dashboard'));
+        ->assertRedirect(route('dashboard.mahasiswa'));
+
+    expect(session('status'))->toBe('Password berhasil diganti.');
+    $this->withSession(['auth_version' => $user->auth_version])
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('data-flash-notification', false)
+        ->assertSee('Password berhasil diganti.');
 
     expect($user->fresh()->must_change_password)->toBeFalse()
         ->and(Hash::check('a-new-secure-password', $user->fresh()->password))->toBeTrue()
@@ -116,7 +123,7 @@ it('requires at least eight characters without adding complexity rules absent fr
         ->set('password', 'abcdefgh')
         ->set('password_confirmation', 'abcdefgh')
         ->call('savePassword')
-        ->assertRedirect(route('dashboard'));
+        ->assertRedirect(route('dashboard.mahasiswa'));
 });
 
 it('invalidates the session and rotates the csrf token on logout', function (): void {

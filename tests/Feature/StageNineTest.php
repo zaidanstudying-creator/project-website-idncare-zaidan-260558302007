@@ -4,7 +4,7 @@ use App\Enums\StudyProgram;
 use App\Enums\UserRole;
 use App\Livewire\Components\Admin\UserTable;
 use App\Livewire\Pages\Admin\Archive\Index as AdminArchiveIndex;
-use App\Livewire\Pages\Admin\Users\EditStudent as AdminUsersEditStudent;
+use App\Livewire\Pages\Admin\Users\EditAccount as AdminUsersEditAccount;
 use App\Livewire\Pages\Admin\Users\Import as AdminUsersImport;
 use App\Livewire\Pages\Admin\Users\Index as AdminUsersIndex;
 use App\Livewire\Pages\Notifications\Index as NotificationsIndex;
@@ -75,7 +75,10 @@ it('allows only super admins to create accounts and never records generated pass
     foreach ($payload as $field => $value) {
         $component->set($field, (string) $value);
     }
-    $component->call('createUser')->assertHasNoErrors();
+    $component->call('createUser')
+        ->assertHasNoErrors()
+        ->assertDispatched('account-created')
+        ->assertSeeHtml('id="temporary-credentials-dialog" open');
     $created = User::query()->where('user_code', 'MHS-NEW-8')->firstOrFail();
     expect($created->must_change_password)->toBeTrue()
         ->and($created->unit_or_prodi)->toBe(StudyProgram::TEKNOLOGI_REKAYASA_PERANGKAT_LUNAK->value)
@@ -109,7 +112,7 @@ it('requires study program, NIM, and cohort year when creating a student account
         ->call('createUser')->assertHasErrors('unit_or_prodi');
 });
 
-it('lets super admins edit identity details of another student and records the changes', function (): void {
+it('lets super admins edit permitted identity details of another student and records the changes', function (): void {
     $admin = stageNineAdmin();
     $student = User::factory()->create([
         'name' => 'Nama Sebelumnya',
@@ -122,15 +125,15 @@ it('lets super admins edit identity details of another student and records the c
         ->withSession(['auth_version' => $admin->auth_version])
         ->get(route('admin.users.edit', $student))
         ->assertOk()
-        ->assertSee('Edit informasi mahasiswa')
+        ->assertSee('Edit informasi akun')
         ->assertSee('20250012');
 
-    Livewire::test(AdminUsersEditStudent::class, ['user' => $student])
+    Livewire::test(AdminUsersEditAccount::class, ['user' => $student])
         ->set('name', 'Nama Diperbarui')
         ->set('unit_or_prodi', StudyProgram::MEDIA_GRAFIS->value)
         ->set('nim', '20260012')
         ->set('angkatan', '2026')
-        ->call('saveStudent')->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
+        ->call('saveAccount')->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
 
     expect($student->fresh()->name)->toBe('Nama Diperbarui')
         ->and($student->fresh()->unit_or_prodi)->toBe(StudyProgram::MEDIA_GRAFIS->value)
@@ -162,15 +165,62 @@ it('rejects student identity changes from non-super admins and prevents NIM reus
 
     $admin = stageNineAdmin();
     $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
-    Livewire::test(AdminUsersEditStudent::class, ['user' => $student])
+    Livewire::test(AdminUsersEditAccount::class, ['user' => $student])
         ->set('name', $payload['name'])
         ->set('unit_or_prodi', $payload['unit_or_prodi'])
         ->set('nim', $payload['nim'])
         ->set('angkatan', (string) $payload['angkatan'])
-        ->call('saveStudent')->assertHasErrors('nim');
+        ->call('saveAccount')->assertHasErrors('nim');
 
     $staff = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS]);
-    $this->get(route('admin.users.edit', $staff))->assertNotFound();
+    $this->get(route('admin.users.edit', $staff))->assertOk()->assertSee('Unit');
+});
+
+it('lets super admins edit only the name and unit of another admin account', function (): void {
+    $admin = stageNineAdmin();
+    $staff = User::factory()->create([
+        'user_code' => 'ADMIN-SARPRAS-1',
+        'name' => 'Nama Admin Lama',
+        'role' => UserRole::ADMIN_SARPRAS,
+        'unit_or_prodi' => 'Sarpras lama',
+        'is_active' => false,
+        'must_change_password' => false,
+    ]);
+    $originalPassword = $staff->password;
+
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.users.edit', $staff))->assertOk()->assertSee('Edit informasi akun');
+
+    Livewire::test(AdminUsersEditAccount::class, ['user' => $staff])
+        ->set('name', 'Nama Admin Baru')
+        ->set('unit_or_prodi', 'Sarpras')
+        ->set('nim', 'TIDAK-BOLEH-DITULIS')
+        ->set('angkatan', '2026')
+        ->call('saveAccount')->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
+
+    expect($staff->fresh()->name)->toBe('Nama Admin Baru')
+        ->and($staff->fresh()->unit_or_prodi)->toBe('Sarpras')
+        ->and($staff->fresh()->user_code)->toBe('ADMIN-SARPRAS-1')
+        ->and($staff->fresh()->role)->toBe(UserRole::ADMIN_SARPRAS)
+        ->and($staff->fresh()->is_active)->toBeFalse()
+        ->and($staff->fresh()->password)->toBe($originalPassword)
+        ->and($staff->fresh()->nim)->toBeNull()
+        ->and($staff->fresh()->angkatan)->toBeNull();
+
+    $log = $admin->activityLogs()->where('action', 'admin_account_updated')->firstOrFail();
+    expect($log->old_values)->toBe(['name' => 'Nama Admin Lama', 'unit_or_prodi' => 'Sarpras lama'])
+        ->and($log->new_values)->toBe(['name' => 'Nama Admin Baru', 'unit_or_prodi' => 'Sarpras']);
+});
+
+it('prevents non-super admins and account owners from editing admin accounts', function (): void {
+    $student = User::factory()->create(['must_change_password' => false]);
+    $staff = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN]);
+    $this->actingAs($student)->withSession(['auth_version' => $student->auth_version])
+        ->get(route('admin.users.edit', $staff))->assertForbidden();
+
+    $admin = stageNineAdmin();
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.users.edit', $admin))->assertForbidden();
 });
 
 it('resets another account with a one-time password and requires it to change that password', function (): void {

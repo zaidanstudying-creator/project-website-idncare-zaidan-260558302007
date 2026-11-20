@@ -22,7 +22,7 @@ class Index extends Component
 
     public string $newName = '';
 
-    /** @var array<int, array{name: string, is_active: bool}> */
+    /** @var array<int, array{name: string}> */
     public array $categoryEdits = [];
 
     public function boot(): void
@@ -65,20 +65,37 @@ class Index extends Component
         Gate::authorize('update', $category);
         $data = $this->validate([
             "categoryEdits.{$categoryId}.name" => ['required', 'string', 'max:150'],
-            "categoryEdits.{$categoryId}.is_active" => ['required', 'boolean'],
         ]);
         $edit = $data['categoryEdits'][$categoryId];
 
         DB::transaction(function () use ($category, $edit, $logs): void {
-            $oldValues = ['name' => $category->name, 'is_active' => $category->is_active];
+            $oldValues = ['name' => $category->name];
             $category->update($edit);
-            $logs->record(auth()->user(), 'category_updated', $category, $oldValues, [
-                'name' => $category->name,
-                'is_active' => $category->is_active,
-            ]);
+            $logs->record(auth()->user(), 'category_updated', $category, $oldValues, ['name' => $category->name]);
         });
 
         $this->dispatch('app-notification', message: 'Kategori berhasil diperbarui.', type: 'success');
+    }
+
+    public function toggleCategoryActive(int $categoryId, ActivityLogService $logs): void
+    {
+        $category = Category::query()->with('reportType')->findOrFail($categoryId);
+        Gate::authorize('update', $category);
+
+        $isActive = DB::transaction(function () use ($categoryId, $logs): bool {
+            $lockedCategory = Category::query()->whereKey($categoryId)->lockForUpdate()->firstOrFail();
+            $wasActive = $lockedCategory->is_active;
+            $isActive = ! $wasActive;
+            $lockedCategory->update(['is_active' => $isActive]);
+            $logs->record(auth()->user(), 'category_updated', $lockedCategory,
+                ['is_active' => $wasActive], ['is_active' => $isActive]);
+
+            return $isActive;
+        });
+
+        $this->dispatch('app-notification', message: $isActive
+            ? 'Kategori berhasil diaktifkan.'
+            : 'Kategori berhasil dinonaktifkan.', type: 'success');
     }
 
     public function deleteCategory(int $categoryId, ActivityLogService $logs): void
@@ -118,7 +135,6 @@ class Index extends Component
         foreach ($categories as $category) {
             $this->categoryEdits[$category->id] ??= [
                 'name' => $category->name,
-                'is_active' => $category->is_active,
             ];
         }
 

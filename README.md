@@ -1,62 +1,107 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# IDN CARE
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+IDN CARE adalah aplikasi layanan kampus untuk mengirim, memantau, dan menangani laporan fasilitas, aspirasi, serta dugaan pelanggaran. Akses laporan dan lampiran dibatasi berdasarkan peran dan unit penanganan.
 
-## Akun Demo Lokal
+## Fitur utama
 
-Panduan username dan password awal akun demo lokal tersedia di [docs/akun-demo-lokal.md](docs/akun-demo-lokal.md). Jangan gunakan kredensial demo di production.
+- Pengajuan laporan fasilitas dengan foto, aspirasi kampus, dan dugaan pelanggaran yang bersifat rahasia.
+- Pelacakan status dan riwayat perkembangan laporan.
+- Dashboard, filter, pencarian, dan pagination untuk pengelolaan laporan.
+- Pengelolaan laporan sesuai peran: Mahasiswa, Admin Sarpras, Admin Kemahasiswaan, dan Super Admin.
+- Lampiran disimpan di disk privat dan hanya dapat dibuka oleh pengguna yang berwenang.
+- Persetujuan visibilitas laporan umum, notifikasi, kategori, lokasi, dan pengaturan portal.
+- Mode terang/gelap dan tampilan responsif.
+- Saran judul opsional melalui Groq API; laporan tetap bisa dibuat tanpa layanan AI.
 
-## About Laravel
+## Teknologi
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.3+ dan Laravel 13.
+- Livewire 4 dan Blade.
+- Tailwind CSS 4, Vite 8, dan Chart.js 4.
+- MySQL.
+- Pest untuk pengujian otomatis.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Persyaratan
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- PHP 8.3 atau lebih baru dengan ekstensi Laravel yang diperlukan.
+- Composer.
+- Node.js dan npm.
+- MySQL lokal.
 
-## Learning Laravel
+## Instalasi
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+1. Clone repositori dan masuk ke folder proyek:
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+   ```bash
+   git clone https://github.com/zaidanstudying-creator/project-website-idncare-zaidan-260558302007.git
+   cd project-website-idncare-zaidan-260558302007
+   ```
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+2. Pasang dependency backend dan frontend:
 
-## Agentic Development
+   ```bash
+   composer install
+   npm install
+   ```
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+3. Buat `.env` dari contoh hanya jika file `.env` belum ada:
+
+   ```bash
+   [ -f .env ] || cp .env.example .env
+   ```
+
+4. Buat database lokal MySQL kosong, lalu sesuaikan `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, dan `DB_PASSWORD` di `.env`.
+
+5. Buat application key untuk instalasi baru:
+
+   ```bash
+   php artisan key:generate
+   ```
+
+6. Atur variabel lokal berikut di `.env`:
+
+   - `REPORT_TOKEN_KEY`: buat satu nilai acak 32 byte dalam format hex, misalnya dengan `php -r 'echo bin2hex(random_bytes(32)), PHP_EOL;'`. Simpan nilainya dan jangan ganti setelah ada laporan anonim.
+   - `DEMO_USER_PASSWORD`: password awal akun demo lokal. Lihat [panduan akun demo](docs/akun-demo-lokal.md).
+   - `GROQ_API_KEY`: opsional, hanya diperlukan jika saran judul AI diaktifkan.
+
+7. Jalankan migrasi dan seeder pada database lokal yang sudah dipastikan benar:
+
+   ```bash
+   php artisan migrate --seed
+   ```
+
+   Jangan jalankan seeder demo pada database production. Seeder tidak mereset password akun demo yang sudah ada.
+
+## Menjalankan project
+
+Jalankan server Laravel dan Vite pada dua terminal terpisah:
+
+Terminal 1:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Terminal 2:
 
-## Contributing
+```bash
+npm run dev
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Buka alamat yang ditampilkan oleh `php artisan serve` (biasanya `http://127.0.0.1:8000`). Jika menggunakan Laravel Herd, buka domain lokal proyek melalui Herd dan jalankan `npm run dev` untuk aset saat pengembangan.
 
-## Code of Conduct
+Untuk membuat aset frontend siap production:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+npm run build
+```
 
-## Security Vulnerabilities
+Untuk menjalankan pengujian:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan test
+```
 
-## License
+## Akun demo
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Username dan password awal untuk empat peran tersedia di [docs/akun-demo-lokal.md](docs/akun-demo-lokal.md). Kredensial tersebut hanya untuk pengembangan lokal; jangan gunakan pada server atau akun pengguna nyata.

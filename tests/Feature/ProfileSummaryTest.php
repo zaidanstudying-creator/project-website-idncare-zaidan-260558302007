@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Pages\Profile\Show as ProfileShow;
 use App\Models\Category;
 use App\Models\Report;
 use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -56,7 +58,7 @@ it('shows only the students own report counts in the profile summary', function 
         ->assertSee('Terkonfirmasi')
         ->assertSee('Laporan anonim tetap bisa kamu lihat sendiri');
 
-    expect(collect($response->viewData('profileSummary')['items'])->pluck('value')->all())->toBe([3, 1, 1]);
+    expect(collect(Livewire::test(ProfileShow::class)->instance()->render()->getData()['profileSummary']['items'])->pluck('value')->all())->toBe([3, 1, 1]);
 });
 
 it('shows unit-scoped handling figures for staff profiles', function (): void {
@@ -78,14 +80,14 @@ it('shows unit-scoped handling figures for staff profiles', function (): void {
         ->assertSee('Laporan ditangani')
         ->assertSee('Rata-rata penyelesaian (hari)')
         ->assertSee('2,0');
-    expect(collect($sarprasResponse->viewData('profileSummary')['items'])->pluck('value')->all())->toBe([1, 1, 2.0]);
+    expect(collect(Livewire::test(ProfileShow::class)->instance()->render()->getData()['profileSummary']['items'])->pluck('value')->all())->toBe([1, 1, 2.0]);
 
     $kemahasiswaanResponse = $this->actingAs($kemahasiswaan)->get(route('profile.show'))
         ->assertOk()
         ->assertSee('Aspirasi ditangani')
         ->assertSee('Pelanggaran ditangani')
         ->assertSee('Identitas pelapor anonim pada laporan pelanggaran tidak dapat dibuka siapa pun.');
-    expect(collect($kemahasiswaanResponse->viewData('profileSummary')['items'])->pluck('value')->all())->toBe([1, 1, null]);
+    expect(collect(Livewire::test(ProfileShow::class)->instance()->render()->getData()['profileSummary']['items'])->pluck('value')->all())->toBe([1, 1, null]);
 });
 
 it('includes archived records in the super admins profile totals without exposing reporter details', function (): void {
@@ -108,7 +110,7 @@ it('includes archived records in the super admins profile totals without exposin
         ->assertSee('Identitas pelapor anonim pada laporan pelanggaran tidak dapat dibuka siapa pun, termasuk Super Admin.')
         ->assertDontSee($report->reporter_token);
 
-    expect(collect($response->viewData('profileSummary')['items'])->pluck('value')->all())->toBe([2, 1, 1]);
+    expect(collect(Livewire::test(ProfileShow::class)->instance()->render()->getData()['profileSummary']['items'])->pluck('value')->all())->toBe([2, 1, 1]);
 });
 
 it('does not allow profile requests to mutate names, IDs, units, roles, or active state', function (): void {

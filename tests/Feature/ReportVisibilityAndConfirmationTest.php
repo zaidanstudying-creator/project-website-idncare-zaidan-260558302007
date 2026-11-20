@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Pages\Admin\Reports\Show as AdminReportShow;
+use App\Livewire\Pages\Reports\Monitor as StudentReportMonitor;
 use App\Livewire\Pages\Reports\Show as StudentReportShow;
 use App\Models\ActivityLog;
 use App\Models\Category;
@@ -89,7 +91,8 @@ it('shows only approved public facilities and aspirations on the monitor and mas
         ->assertDontSee('Judul laporan rahasia yang tidak tampil')
         ->assertDontSee('Dugaan pelanggaran yang tidak tampil');
 
-    $anonymousCard = collect($response->viewData('reports')->items())->firstWhere('id', $publicAnonymous->id);
+    $anonymousCard = collect(Livewire::test(StudentReportMonitor::class)->instance()->render()->getData()['reports']->items())
+        ->firstWhere('id', $publicAnonymous->id);
     expect($anonymousCard->public_reporter_name)->toBeNull()
         ->and(array_key_exists('reporter_id', $anonymousCard->getAttributes()))->toBeFalse()
         ->and(array_key_exists('reporter_token', $anonymousCard->getAttributes()))->toBeFalse()
@@ -118,14 +121,12 @@ it('approves or rejects public visibility only by the assigned unit and excludes
     $sarpras = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
     $kemahasiswaan = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
 
-    $this->actingAs($sarpras)->post(route('admin.reports.visibility.decide', $facility), ['decision' => 'approve'])
-        ->assertRedirect(route('admin.reports.show', $facility));
-    $this->actingAs($sarpras)->post(route('admin.reports.visibility.decide', $aspiration), ['decision' => 'approve'])
-        ->assertForbidden();
-    $this->actingAs($kemahasiswaan)->post(route('admin.reports.visibility.decide', $aspiration), ['decision' => 'reject'])
-        ->assertRedirect(route('admin.reports.show', $aspiration));
-    $this->actingAs($kemahasiswaan)->post(route('admin.reports.visibility.decide', $violation), ['decision' => 'approve'])
-        ->assertForbidden();
+    $this->actingAs($sarpras)->withSession(['auth_version' => $sarpras->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $facility])->call('decideVisibility', 'approve')->assertHasNoErrors();
+    $this->get(route('admin.reports.show', $aspiration))->assertNotFound();
+    $this->actingAs($kemahasiswaan)->withSession(['auth_version' => $kemahasiswaan->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $aspiration])->call('decideVisibility', 'reject')->assertHasNoErrors();
+    Livewire::test(AdminReportShow::class, ['report' => $violation])->call('decideVisibility', 'approve')->assertForbidden();
 
     expect($facility->fresh()->visibility_status)->toBe(Report::VISIBILITY_APPROVED)
         ->and($facility->fresh()->approved_visibility)->toBe(Report::VISIBILITY_UMUM)
@@ -166,11 +167,12 @@ it('lets the owner confirm a finished report once', function (): void {
         'completed_at' => now()->subDays(2),
     ]);
 
-    $this->actingAs($reporter)->post(route('reports.confirm', $report))
-        ->assertRedirect(route('reports.show', $report));
+    Livewire::actingAs($reporter)->test(StudentReportShow::class, ['report' => (string) $report->id])
+        ->call('confirm')->assertHasNoErrors();
 
     expect($report->fresh()->confirmed_at)->not->toBeNull();
-    $this->post(route('reports.confirm', $report))->assertForbidden();
+    Livewire::actingAs($reporter)->test(StudentReportShow::class, ['report' => (string) $report->id])
+        ->call('confirm')->assertForbidden();
 });
 
 it('reopens token-owned anonymous reports without linking the reporter in history or logs', function (): void {
@@ -187,9 +189,9 @@ it('reopens token-owned anonymous reports without linking the reporter in histor
         'completed_at' => now()->subDay(),
     ]);
 
-    $this->actingAs($reporter)->post(route('reports.reopen', $report), [
-        'reason' => 'Tindak lanjut belum sesuai.',
-    ])->assertRedirect(route('reports.show', $report));
+    Livewire::actingAs($reporter)->test(StudentReportShow::class, ['report' => (string) $report->id])
+        ->set('reopenReason', 'Tindak lanjut belum sesuai.')
+        ->call('reopen')->assertHasNoErrors();
 
     $history = ReportStatusHistory::query()->where('report_id', $report->id)->sole();
     $log = ActivityLog::query()->where('action', 'report_reopened')->sole();
@@ -233,14 +235,15 @@ it('requires a reopen reason, does not impose the proposed reopen cap, and refus
         'completed_at' => now()->subDay(),
     ]);
 
-    $this->actingAs($owner)->post(route('reports.reopen', $report), ['reason' => 'no'])
-        ->assertSessionHasErrors('reason');
-    $this->actingAs($other)->post(route('reports.reopen', $report), ['reason' => 'Ada masalah lagi.'])
-        ->assertForbidden();
+    Livewire::actingAs($owner)->test(StudentReportShow::class, ['report' => (string) $report->id])
+        ->set('reopenReason', 'no')->call('reopen')->assertHasErrors('reopenReason');
+    $this->actingAs($other)->withSession(['auth_version' => $other->auth_version]);
+    $this->get(route('reports.show', $report))->assertNotFound();
 
     $report->forceFill(['reopened_count' => 2])->save();
-    $this->actingAs($owner)->post(route('reports.reopen', $report), ['reason' => 'Masih belum sesuai.'])
-        ->assertRedirect(route('reports.show', $report));
+    Livewire::actingAs($owner)->test(StudentReportShow::class, ['report' => (string) $report->id])
+        ->set('reopenReason', 'Masih belum sesuai.')
+        ->call('reopen')->assertHasNoErrors();
     expect($report->fresh()->status)->toBe(Report::STATUS_DIPROSES)
         ->and($report->fresh()->reopened_count)->toBe(3)
         ->and(ReportStatusHistory::query()->where('report_id', $report->id)->count())->toBe(1);
@@ -259,7 +262,8 @@ it('confirms token-owned anonymous violations without adding identity metadata t
         'completed_at' => now()->subDay(),
     ]);
 
-    $this->actingAs($reporter)->post(route('reports.confirm', $report))->assertRedirect(route('reports.show', $report));
+    Livewire::actingAs($reporter)->test(StudentReportShow::class, ['report' => (string) $report->id])
+        ->call('confirm')->assertHasNoErrors();
 
     $log = ActivityLog::query()->sole();
     expect($report->fresh()->confirmed_at)->not->toBeNull()

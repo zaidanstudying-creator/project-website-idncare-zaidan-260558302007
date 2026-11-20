@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-#[Layout('layouts.public', ['hidePublicNav' => true, 'bodyClass' => 'login-body'])]
+#[Layout('layouts.public', ['hidePublicNav' => true, 'hideAnnouncements' => true, 'bodyClass' => 'login-body'])]
 class Login extends Component
 {
     public string $userCode = '';

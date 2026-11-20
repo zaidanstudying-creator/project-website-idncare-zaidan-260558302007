@@ -70,7 +70,7 @@ class UserTable extends Component
             ->when($this->roleFilter !== '', fn ($query) => $query->where('role', $this->roleFilter))
             ->when($this->statusFilter !== '', fn ($query) => $query->where('is_active', $this->statusFilter === 'aktif'))
             ->orderBy('user_code')
-            ->paginate(20);
+            ->paginate(20)->onEachSide(1);
     }
 
     public function resetPassword(int $userId, ActivityLogService $logs): void

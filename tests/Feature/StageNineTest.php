@@ -2,8 +2,12 @@
 
 use App\Enums\StudyProgram;
 use App\Enums\UserRole;
+use App\Livewire\Components\Admin\UserTable;
 use App\Livewire\Pages\Admin\Archive\Index as AdminArchiveIndex;
+use App\Livewire\Pages\Admin\Users\EditStudent as AdminUsersEditStudent;
 use App\Livewire\Pages\Admin\Users\Import as AdminUsersImport;
+use App\Livewire\Pages\Admin\Users\Index as AdminUsersIndex;
+use App\Livewire\Pages\Notifications\Index as NotificationsIndex;
 use App\Livewire\Pages\Reports\CreateForm;
 use App\Livewire\Pages\Reports\Show as StudentReportShow;
 use App\Models\Category;
@@ -62,44 +66,47 @@ it('shows the available study programs on the student account form', function ()
 
 it('allows only super admins to create accounts and never records generated passwords in activity logs', function (): void {
     $student = User::factory()->create(['must_change_password' => false]);
-    $payload = ['user_code' => 'MHS-NEW-8', 'name' => 'Mahasiswa Baru', 'role' => UserRole::MAHASISWA->value, 'unit_or_prodi' => 'Teknologi rekayasa perangkat lunak', 'nim' => '20260008', 'angkatan' => 2026];
-    $this->actingAs($student)->post(route('admin.users.store'), $payload)->assertForbidden();
+    $payload = ['user_code' => 'MHS-NEW-8', 'name' => 'Mahasiswa Baru', 'role' => UserRole::MAHASISWA->value, 'unit_or_prodi' => StudyProgram::TEKNOLOGI_REKAYASA_PERANGKAT_LUNAK->value, 'nim' => '20260008', 'angkatan' => 2026];
+    $this->actingAs($student)->get(route('admin.users.index'))->assertForbidden();
 
     $admin = stageNineAdmin();
-    $this->actingAs($admin)->post(route('admin.users.store'), $payload)->assertRedirect(route('admin.users.index'));
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    $component = Livewire::test(AdminUsersIndex::class);
+    foreach ($payload as $field => $value) {
+        $component->set($field, (string) $value);
+    }
+    $component->call('createUser')->assertHasNoErrors();
     $created = User::query()->where('user_code', 'MHS-NEW-8')->firstOrFail();
     expect($created->must_change_password)->toBeTrue()
-        ->and($created->unit_or_prodi)->toBe('Teknologi rekayasa perangkat lunak')
+        ->and($created->unit_or_prodi)->toBe(StudyProgram::TEKNOLOGI_REKAYASA_PERANGKAT_LUNAK->value)
         ->and($created->nim)->toBe('20260008')
         ->and($created->angkatan)->toBe(2026)
         ->and($created->is_active)->toBeTrue()
-        ->and(session('temporary_credentials.0.password'))->not->toBeEmpty();
+        ->and($component->get('temporaryPassword'))->not->toBeEmpty();
     $log = $admin->activityLogs()->where('action', 'user_created')->firstOrFail();
-    expect(json_encode($log->new_values))->not->toContain(session('temporary_credentials.0.password'));
+    expect(json_encode($log->new_values))->not->toContain($component->get('temporaryPassword'));
 });
 
 it('requires study program, NIM, and cohort year when creating a student account', function (): void {
     $admin = stageNineAdmin();
 
-    $this->actingAs($admin)
-        ->from(route('admin.users.index'))
-        ->post(route('admin.users.store'), [
-            'user_code' => 'MHS-MISSING-DATA',
-            'name' => 'Mahasiswa Tanpa Data',
-            'role' => UserRole::MAHASISWA->value,
-        ])
-        ->assertSessionHasErrors(['unit_or_prodi', 'nim', 'angkatan']);
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminUsersIndex::class)
+        ->set('user_code', 'MHS-MISSING-DATA')
+        ->set('name', 'Mahasiswa Tanpa Data')
+        ->set('role', UserRole::MAHASISWA->value)
+        ->call('createUser')->assertHasErrors(['unit_or_prodi', 'nim', 'angkatan']);
 
     expect(User::query()->where('user_code', 'MHS-MISSING-DATA')->exists())->toBeFalse();
 
-    $this->actingAs($admin)->post(route('admin.users.store'), [
-        'user_code' => 'MHS-INVALID-PROGRAM',
-        'name' => 'Mahasiswa Prodi Salah',
-        'role' => UserRole::MAHASISWA->value,
-        'unit_or_prodi' => 'Program Studi Tidak Terdaftar',
-        'nim' => '20260011',
-        'angkatan' => 2026,
-    ])->assertSessionHasErrors('unit_or_prodi');
+    Livewire::test(AdminUsersIndex::class)
+        ->set('user_code', 'MHS-INVALID-PROGRAM')
+        ->set('name', 'Mahasiswa Prodi Salah')
+        ->set('role', UserRole::MAHASISWA->value)
+        ->set('unit_or_prodi', 'Program Studi Tidak Terdaftar')
+        ->set('nim', '20260011')
+        ->set('angkatan', '2026')
+        ->call('createUser')->assertHasErrors('unit_or_prodi');
 });
 
 it('lets super admins edit identity details of another student and records the changes', function (): void {
@@ -118,14 +125,12 @@ it('lets super admins edit identity details of another student and records the c
         ->assertSee('Edit informasi mahasiswa')
         ->assertSee('20250012');
 
-    $this->actingAs($admin)->put(route('admin.users.update', $student), [
-        'name' => 'Nama Diperbarui',
-        'unit_or_prodi' => StudyProgram::MEDIA_GRAFIS->value,
-        'nim' => '20260012',
-        'angkatan' => 2026,
-        'role' => UserRole::SUPER_ADMIN->value,
-        'user_code' => 'ID-DIUBAH',
-    ])->assertRedirect(route('admin.users.index'));
+    Livewire::test(AdminUsersEditStudent::class, ['user' => $student])
+        ->set('name', 'Nama Diperbarui')
+        ->set('unit_or_prodi', StudyProgram::MEDIA_GRAFIS->value)
+        ->set('nim', '20260012')
+        ->set('angkatan', '2026')
+        ->call('saveStudent')->assertHasNoErrors()->assertRedirect(route('admin.users.index'));
 
     expect($student->fresh()->name)->toBe('Nama Diperbarui')
         ->and($student->fresh()->unit_or_prodi)->toBe(StudyProgram::MEDIA_GRAFIS->value)
@@ -152,15 +157,17 @@ it('rejects student identity changes from non-super admins and prevents NIM reus
         'angkatan' => 2026,
     ];
 
-    $this->actingAs($otherStudent)
-        ->put(route('admin.users.update', $student), $payload)
-        ->assertForbidden();
+    $this->actingAs($otherStudent)->withSession(['auth_version' => $otherStudent->auth_version])
+        ->get(route('admin.users.edit', $student))->assertForbidden();
 
     $admin = stageNineAdmin();
-    $this->actingAs($admin)
-        ->from(route('admin.users.edit', $student))
-        ->put(route('admin.users.update', $student), $payload)
-        ->assertSessionHasErrors('nim');
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminUsersEditStudent::class, ['user' => $student])
+        ->set('name', $payload['name'])
+        ->set('unit_or_prodi', $payload['unit_or_prodi'])
+        ->set('nim', $payload['nim'])
+        ->set('angkatan', (string) $payload['angkatan'])
+        ->call('saveStudent')->assertHasErrors('nim');
 
     $staff = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS]);
     $this->get(route('admin.users.edit', $staff))->assertNotFound();
@@ -170,8 +177,9 @@ it('resets another account with a one-time password and requires it to change th
     $admin = stageNineAdmin();
     $target = User::factory()->create(['user_code' => 'MHS-RESET', 'must_change_password' => false]);
     $originalHash = $target->password;
-    $this->actingAs($admin)->post(route('admin.users.reset-password', $target))->assertRedirect(route('admin.users.index'));
-    $temporaryPassword = session('temporary_credentials.0.password');
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    $component = Livewire::test(UserTable::class)->call('resetPassword', $target->id)->assertHasNoErrors();
+    $temporaryPassword = $component->effects['dispatches'][1]['params']['password'] ?? null;
     expect($target->fresh()->must_change_password)->toBeTrue()
         ->and($target->fresh()->password)->not->toBe($originalHash)
         ->and($temporaryPassword)->not->toBeEmpty()
@@ -182,7 +190,8 @@ it('invalidates an already open session after an administrator resets that accou
     $admin = stageNineAdmin();
     $target = User::factory()->create(['must_change_password' => false, 'auth_version' => 1]);
 
-    $this->actingAs($admin)->post(route('admin.users.reset-password', $target))->assertRedirect(route('admin.users.index'));
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(UserTable::class)->call('resetPassword', $target->id)->assertHasNoErrors();
     expect($target->fresh()->auth_version)->toBe(2);
 
     $this->withSession(['auth_version' => 1])->actingAs($target->fresh())
@@ -195,7 +204,8 @@ it('invalidates an already open session after an administrator deactivates that 
     $admin = stageNineAdmin();
     $target = User::factory()->create(['must_change_password' => false, 'auth_version' => 1]);
 
-    $this->actingAs($admin)->post(route('admin.users.deactivate', $target))->assertRedirect(route('admin.users.index'));
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(UserTable::class)->call('toggleActive', $target->id)->assertHasNoErrors();
     expect($target->fresh()->is_active)->toBeFalse()
         ->and($target->fresh()->auth_version)->toBe(2);
 
@@ -230,30 +240,30 @@ it('previews csv account imports and creates valid student rows without overwrit
     Storage::fake('local');
     $file = UploadedFile::fake()->createWithContent('accounts.csv', "user_code,name,unit_or_prodi\nMHS-EXIST,Nama Baru,TRPL\nMHS-NEW,Baru,TRPL\n");
 
-    $this->actingAs($admin)->post(route('admin.users.import.preview'), ['file' => $file])
-        ->assertOk()->assertSee('sudah ada')->assertSee('Siap diimpor');
-    $this->post(route('admin.users.import.commit'), ['confirm' => '1'])->assertRedirect(route('admin.users.index'));
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminUsersImport::class)->set('file', $file)->call('preview')
+        ->assertSee('sudah ada')->assertSee('Siap diimpor')
+        ->call('commit')->assertHasNoErrors();
     expect($existing->fresh()->name)->toBe('Nama Lama')
         ->and(User::query()->where('user_code', 'MHS-NEW')->value('must_change_password'))->toBeTrue()
-        ->and(count(session('temporary_credentials')))->toBe(1);
+        ->and(User::query()->where('user_code', 'MHS-NEW')->count())->toBe(1);
 });
 
 it('imports student study program, NIM, and cohort from the updated CSV template', function (): void {
     $admin = stageNineAdmin();
     $file = UploadedFile::fake()->createWithContent(
         'students.csv',
-        "user_code,name,unit_or_prodi,nim,angkatan\nMHS-NEW-DATA,Mahasiswa Data,Media grafis,20260010,2026\n",
+        "user_code,name,unit_or_prodi,nim,angkatan\nMHS-NEW-DATA,Mahasiswa Data,".StudyProgram::MEDIA_GRAFIS->value.",20260010,2026\n",
     );
 
-    $this->actingAs($admin)->post(route('admin.users.import.preview'), ['file' => $file])
-        ->assertOk()
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminUsersImport::class)->set('file', $file)->call('preview')
         ->assertSee('20260010')
-        ->assertSee('Siap diimpor');
-    $this->post(route('admin.users.import.commit'), ['confirm' => '1'])
-        ->assertRedirect(route('admin.users.index'));
+        ->assertSee('Siap diimpor')
+        ->call('commit')->assertHasNoErrors();
 
     $student = User::query()->where('user_code', 'MHS-NEW-DATA')->firstOrFail();
-    expect($student->unit_or_prodi)->toBe('Media grafis')
+    expect($student->unit_or_prodi)->toBe(StudyProgram::MEDIA_GRAFIS->value)
         ->and($student->nim)->toBe('20260010')
         ->and($student->angkatan)->toBe(2026);
 });
@@ -433,7 +443,8 @@ it('creates in-app status notifications for identified reporters and none for an
     $this->withSession(['auth_version' => $otherStudent->auth_version])->actingAs($otherStudent)
         ->get(route('notifications.index'))
         ->assertOk()->assertDontSee($report->ticket_no);
-    $this->post(route('notifications.read', $notification->id))->assertNotFound();
+    Livewire::actingAs($otherStudent)->test(NotificationsIndex::class)
+        ->call('markRead', $notification->id)->assertNotFound();
 
     $anonymousReport = stageNineReport($reporter);
     $anonymousReport->forceFill(['reporter_id' => null, 'reporter_token' => hash('sha256', 'private-token')])->save();

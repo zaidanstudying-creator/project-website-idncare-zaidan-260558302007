@@ -173,7 +173,9 @@ class CreateForm extends Component
         $categories = $reportType->categories()->where('is_active', true)->orderBy('name')->get();
         $locations = Location::query()->where('is_active', true)->orderBy('name')->get();
 
-        return view('livewire.pages.reports.create-form', compact('reportType', 'categories', 'locations'))
+        $availableReportTypes = ReportType::availableForSubmission();
+
+        return view('livewire.pages.reports.create-form', compact('reportType', 'categories', 'locations', 'availableReportTypes'))
             ->title($reportType->name);
     }
 }

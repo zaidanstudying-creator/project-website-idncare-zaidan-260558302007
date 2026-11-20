@@ -67,7 +67,7 @@ class Index extends Component
             ->when($filters['to'] ?? null, fn (Builder $query, string $to) => $query->whereDate('created_at', '<=', $to));
 
         $actions = (clone $query)->reorder()->select('action')->distinct()->orderBy('action')->pluck('action');
-        $logs = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(20);
+        $logs = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(20)->onEachSide(1);
 
         return view('livewire.pages.admin.activity-logs.index', compact('logs', 'actions', 'accessibleLogsCount'))
             ->title('Activity log');

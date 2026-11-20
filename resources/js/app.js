@@ -80,6 +80,126 @@ const applyThemePreference = ({ persist = false } = {}) => {
 };
 applyThemePreference();
 
+const globalLoadingIndicator = document.querySelector('#global-loading-indicator');
+let pendingLoadingSources = 0;
+let loadingDelayTimer = null;
+const showGlobalLoading = () => {
+    if (!(globalLoadingIndicator instanceof HTMLElement)) return;
+
+    globalLoadingIndicator.hidden = false;
+    globalLoadingIndicator.setAttribute('aria-busy', 'true');
+};
+const hideGlobalLoading = () => {
+    if (!(globalLoadingIndicator instanceof HTMLElement)) return;
+
+    globalLoadingIndicator.hidden = true;
+    globalLoadingIndicator.setAttribute('aria-busy', 'false');
+};
+const beginLoading = () => {
+    pendingLoadingSources++;
+    if (pendingLoadingSources === 1) {
+        loadingDelayTimer = window.setTimeout(showGlobalLoading, 200);
+    }
+};
+const finishLoading = () => {
+    pendingLoadingSources = Math.max(0, pendingLoadingSources - 1);
+    if (pendingLoadingSources !== 0) return;
+
+    if (loadingDelayTimer !== null) {
+        window.clearTimeout(loadingDelayTimer);
+        loadingDelayTimer = null;
+    }
+    hideGlobalLoading();
+};
+
+document.addEventListener('livewire:init', () => {
+    window.Livewire.interceptRequest(({ onSend, onFinish }) => {
+        let requestIsPending = false;
+        onSend(() => {
+            requestIsPending = true;
+            beginLoading();
+        });
+        onFinish(() => {
+            if (!requestIsPending) return;
+            requestIsPending = false;
+            finishLoading();
+        });
+    });
+});
+
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    const link = event.target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement) || link.target !== '' && link.target !== '_self' || link.hasAttribute('download')) return;
+
+    const destination = new URL(link.href, window.location.href);
+    if (destination.origin !== window.location.origin) return;
+    if (destination.pathname === window.location.pathname && destination.search === window.location.search && destination.hash !== '') return;
+
+    beginLoading();
+});
+
+window.addEventListener('pageshow', () => {
+    pendingLoadingSources = 0;
+    if (loadingDelayTimer !== null) {
+        window.clearTimeout(loadingDelayTimer);
+        loadingDelayTimer = null;
+    }
+    hideGlobalLoading();
+});
+
+const announcementMarquees = [...document.querySelectorAll('[data-announcement-marquee]')];
+const syncAnnouncementMarquees = () => {
+    announcementMarquees.forEach((announcement) => {
+        if (announcement.hidden) return;
+
+        const viewport = announcement.querySelector('.announcement-ticker-window');
+        const text = announcement.querySelector('.announcement-ticker-track > span:not([aria-hidden="true"])');
+        if (!(viewport instanceof HTMLElement) || !(text instanceof HTMLElement)) {
+            announcement.dataset.announcementReady = 'true';
+            return;
+        }
+
+        const track = text.parentElement;
+        const copy = track.querySelector('[aria-hidden="true"]');
+        const original = announcement.dataset.originalAnnouncement ?? text.textContent.trim();
+        announcement.dataset.originalAnnouncement = original;
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        text.textContent = reducedMotion ? original : `${original}  •  `;
+        if (!reducedMotion && text.getBoundingClientRect().width > 0) {
+            const repetitions = Math.max(1, Math.ceil(viewport.clientWidth / text.getBoundingClientRect().width));
+            text.textContent = `${original}  •  `.repeat(repetitions);
+        }
+        if (copy) copy.textContent = text.textContent;
+        announcement.dataset.scrolling = String(!reducedMotion);
+        announcement.dataset.announcementReady = 'true';
+    });
+};
+
+syncAnnouncementMarquees();
+document.fonts?.ready.then(syncAnnouncementMarquees);
+
+let announcementResizeFrame = null;
+window.addEventListener('resize', () => {
+    if (announcementResizeFrame !== null) return;
+
+    announcementResizeFrame = window.requestAnimationFrame(() => {
+        announcementResizeFrame = null;
+        syncAnnouncementMarquees();
+    });
+}, { passive: true });
+
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+
+    const closeButton = event.target.closest('[data-announcement-dismiss]');
+    const announcement = closeButton?.closest('[data-announcement-marquee]');
+    if (!(closeButton instanceof HTMLButtonElement) || !(announcement instanceof HTMLElement)) return;
+
+    announcement.hidden = true;
+});
+
 document.querySelectorAll('[data-theme-choice]').forEach((choice) => choice.addEventListener('click', () => {
     themePreference = { ...themePreference, mode: choice.dataset.themeChoice };
     applyThemePreference({ persist: true });
@@ -607,10 +727,30 @@ document.querySelectorAll('[data-file-preview]').forEach((input) => {
     let urls = [];
     input.addEventListener('change', () => {
         urls.forEach((url) => URL.revokeObjectURL(url)); urls = []; preview.replaceChildren();
-        [...(input.files ?? [])].filter((file) => file.type.startsWith('image/')).forEach((file) => {
+        const selectedFiles = [...(input.files ?? [])];
+        selectedFiles.filter((file) => file.type.startsWith('image/')).forEach((file) => {
+            const fileIndex = selectedFiles.indexOf(file);
             const url = URL.createObjectURL(file); urls.push(url);
+            const card = document.createElement('div');
+            card.className = 'report-photo-preview-card';
             const image = document.createElement('img'); image.src = url; image.alt = `Pratinjau ${file.name}`;
-            image.className = 'aspect-square w-full rounded-lg object-cover'; preview.append(image);
+            image.className = 'report-photo-preview-image';
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'report-photo-preview-remove';
+            removeButton.setAttribute('aria-label', `Hapus foto ${file.name}`);
+            removeButton.title = 'Hapus foto';
+            removeButton.textContent = '×';
+            removeButton.addEventListener('click', () => {
+                const transfer = new DataTransfer();
+                [...(input.files ?? [])].forEach((selectedFile, selectedIndex) => {
+                    if (selectedIndex !== fileIndex) transfer.items.add(selectedFile);
+                });
+                input.files = transfer.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            card.append(image, removeButton);
+            preview.append(card);
             animateIfAllowed(image, [
                 { opacity: 0, transform: 'scale(.96)' },
                 { opacity: 1, transform: 'scale(1)' },
@@ -693,8 +833,10 @@ if (chartDataElement) {
         }));
 
         const hasChartValues = series.some((dataset) => hasValues(dataset.data));
-        if (!hasChartValues && (labels.length === 0 || series.length === 0)) {
+        if (!hasChartValues) {
+            if (labels.length > 0 && series.length > 0) appendDataTable(canvas, labels, series);
             canvas.hidden = true;
+            canvas.closest('.type-composition-layout, .status-composition-layout, .unit-comparison-layout')?.classList.add('is-empty');
             const empty = document.createElement('p');
             empty.className = 'dashboard-chart-empty';
             empty.textContent = 'Belum ada data untuk ditampilkan.';
@@ -722,12 +864,6 @@ if (chartDataElement) {
             },
         });
         dashboardCharts.push(chart);
-        if (!hasChartValues) {
-            const empty = document.createElement('p');
-            empty.className = 'dashboard-chart-empty-note';
-            empty.textContent = 'Belum ada data untuk ditampilkan.';
-            canvas.parentElement.after(empty);
-        }
     };
     const rowsToSeries = (rows) => [{ label: 'Laporan', data: rows.map((row) => row.count) }];
     const renderDoughnut = (id, chart, colors = [], showLegend = true) => render(id, 'doughnut', chart.labels, [{ label: 'Jumlah', data: chart.values, backgroundColor: colors, borderColor: colors, borderWidth: 0 }], {

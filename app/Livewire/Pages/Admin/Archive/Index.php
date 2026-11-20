@@ -110,7 +110,7 @@ class Index extends Component
             ->selectRaw('academic_year, COUNT(*) AS report_count, MAX(archived_at) AS archived_at')
             ->groupBy('academic_year')->orderByDesc('academic_year')->get();
         $archivedReports = Report::withoutGlobalScope('active')->whereNotNull('archived_at')
-            ->with('reportType:id,code,name')->orderByDesc('archived_at')->orderByDesc('id')->paginate(20);
+            ->with('reportType:id,code,name')->orderByDesc('archived_at')->orderByDesc('id')->paginate(20)->onEachSide(1);
 
         return view('livewire.pages.admin.archive.index', compact('archives', 'archivedReports'))
             ->title('Arsip laporan');

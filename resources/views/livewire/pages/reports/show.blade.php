@@ -52,9 +52,12 @@
                 <h2 class="text-lg font-extrabold">Perkembangan laporan</h2>
                 <ol class="mt-4 divide-y divide-blue-50">
                     @foreach ($report->statusHistories->sortBy('created_at') as $history)
+                        @php
+                            $historyAt = $history->created_at ?? ($history->to_status === \App\Models\Report::STATUS_DIKIRIM ? $report->created_at : null);
+                        @endphp
                         <li class="flex gap-3 py-3 text-sm">
                             <span class="mt-1.5 size-3 shrink-0 rounded-full {{ $history->to_status === $report->status ? 'bg-[#0B5FFF]' : 'bg-emerald-500' }}"></span>
-                            <div class="min-w-0 flex-1"><p class="font-bold">{{ $statusLabels[$history->to_status] ?? $history->to_status }}</p><p class="mt-1 text-xs text-slate-500">{{ $history->changedBy?->name ?? ($isAnonymousViolation && $history->changed_by === null ? 'Aksi pelapor anonim' : ($history->changed_by === null ? 'Sistem' : 'Admin')) }}</p>@if ($history->created_at)<time datetime="{{ $history->created_at->toIso8601String() }}" class="mt-1 grid gap-0.5 text-xs text-slate-500"><span>{{ $history->created_at->timezone('Asia/Jakarta')->format('d M Y') }}</span><span>{{ $history->created_at->timezone('Asia/Jakarta')->format('H:i') }} WIB</span></time>@else<p class="mt-1 text-xs text-slate-500">Waktu tidak tersedia</p>@endif @if ($history->note)<p class="mt-2 whitespace-pre-line text-slate-600">{{ $history->note }}</p>@endif</div>
+                            <div class="min-w-0 flex-1"><p class="font-bold">{{ $statusLabels[$history->to_status] ?? $history->to_status }}</p><p class="mt-1 text-xs text-slate-500">{{ $history->changedBy?->name ?? ($isAnonymousViolation && $history->changed_by === null ? 'Aksi pelapor anonim' : ($history->changed_by === null ? 'Sistem' : 'Admin')) }}</p>@if ($historyAt)<time datetime="{{ $historyAt->toIso8601String() }}" class="mt-1 grid gap-0.5 text-xs text-slate-500"><span>{{ $historyAt->timezone('Asia/Jakarta')->format('d M Y') }}</span><span>{{ $historyAt->timezone('Asia/Jakarta')->format('H:i') }} WIB</span></time>@else<p class="mt-1 text-xs text-slate-500">Waktu tidak tersedia</p>@endif @if ($history->note)<p class="mt-2 whitespace-pre-line text-slate-600">{{ $history->note }}</p>@endif</div>
                         </li>
                     @endforeach
                 </ol>

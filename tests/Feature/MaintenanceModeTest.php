@@ -5,6 +5,7 @@ use App\Http\Middleware\MaintenancePage;
 use App\Livewire\Pages\Admin\Settings\Index as AdminSettingsIndex;
 use App\Livewire\Pages\Auth\Login;
 use App\Models\ActivityLog;
+use App\Models\ReportType;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -185,6 +186,7 @@ it('saves portal preferences and renders the customized maintenance message', fu
         ->set('supportContact', 'admin@example.test')
         ->set('announcementText', 'Jadwal layanan berubah')
         ->set('announcementEnabled', true)
+        ->set('announcementSpeed', 55)
         ->set('fontScale', 110)
         ->set('maintenanceTitle', 'Kami sedang memperbarui layanan')
         ->set('maintenanceMessage', 'Silakan kembali sebentar lagi.')
@@ -199,6 +201,7 @@ it('saves portal preferences and renders the customized maintenance message', fu
         'tagline' => 'Tagline Baru',
         'support_contact' => 'admin@example.test',
         'announcement_enabled' => true,
+        'announcement_speed' => 55,
         'font_scale' => 110,
         'maintenance_title' => 'Kami sedang memperbarui layanan',
         'maintenance_coming_soon' => 'SEGERA HADIR',
@@ -207,6 +210,62 @@ it('saves portal preferences and renders the customized maintenance message', fu
     SiteSetting::query()->whereKey(1)->update(['maintenance_enabled' => true]);
     $this->app['auth']->logout();
     $this->get('/')->assertStatus(503)->assertSee('Kami sedang memperbarui layanan')->assertSee('Silakan kembali sebentar lagi.')->assertSee('SEGERA HADIR');
+});
+
+it('renders enabled announcements as a dismissible running text at the saved speed', function (): void {
+    SiteSetting::query()->whereKey(1)->update([
+        'announcement_text' => 'Jadwal perbaikan perpustakaan',
+        'announcement_enabled' => true,
+        'announcement_speed' => 50,
+    ]);
+    $student = User::factory()->create([
+        'role' => UserRole::MAHASISWA,
+        'must_change_password' => false,
+    ]);
+
+    $this->actingAs($student)
+        ->withSession(['auth_version' => $student->auth_version])
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('data-announcement-marquee', false)
+        ->assertSee('style="--announcement-duration: 50s"', false)
+        ->assertSee('aria-label="Tutup pengumuman"', false)
+        ->assertSee('Jadwal perbaikan perpustakaan', false);
+});
+
+it('saves the maintenance editor without requiring unrelated portal fields to validate', function (): void {
+    $superAdmin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+
+    Livewire::actingAs($superAdmin)
+        ->test(AdminSettingsIndex::class)
+        ->set('campusName', '')
+        ->set('maintenanceTitle', 'Pembaruan sistem berlangsung')
+        ->set('maintenanceMessage', 'Layanan akan kembali setelah pemeliharaan selesai.')
+        ->set('maintenanceComingSoon', 'SEGERA KEMBALI')
+        ->call('saveMaintenanceMessages')
+        ->assertHasNoErrors()
+        ->assertDispatched('app-notification');
+
+    $this->assertDatabaseHas('site_settings', [
+        'id' => 1,
+        'campus_name' => 'IDN CARE',
+        'maintenance_title' => 'Pembaruan sistem berlangsung',
+        'maintenance_message' => 'Layanan akan kembali setelah pemeliharaan selesai.',
+        'maintenance_coming_soon' => 'SEGERA KEMBALI',
+        'maintenance_updated_by' => $superAdmin->id,
+    ]);
+
+    SiteSetting::query()->whereKey(1)->update(['maintenance_enabled' => true]);
+    $this->app['auth']->logout();
+
+    $this->get('/')
+        ->assertStatus(503)
+        ->assertSee('Pembaruan sistem berlangsung')
+        ->assertSee('Layanan akan kembali setelah pemeliharaan selesai.')
+        ->assertSee('SEGERA KEMBALI');
 });
 
 it('lets the super admin control report types individually or all at once', function (): void {
@@ -249,7 +308,11 @@ it('lets the super admin control report types individually or all at once', func
 
     $this->actingAs($student)
         ->withSession(['auth_version' => $student->auth_version])
-        ->get(route('reports.create'))
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('href="'.route('reports.create').'" class="portal-nav-link"', false);
+
+    $this->get(route('reports.create'))
         ->assertOk()
         ->assertSee('semua jenis pelaporan sedang dinonaktifkan');
 });
@@ -276,6 +339,83 @@ it('saves report type choices independently from the other portal settings', fun
         'aspiration_reports_enabled' => true,
         'violation_reports_enabled' => false,
     ]);
+});
+
+it('opens every enabled report form to students after the super admin saves the choices', function (): void {
+    $student = User::factory()->create([
+        'role' => UserRole::MAHASISWA,
+        'must_change_password' => false,
+    ]);
+    $this->actingAs($student)->withSession(['auth_version' => $student->auth_version]);
+    $this->get(route('reports.create'))
+        ->assertOk()
+        ->assertSee('semua jenis pelaporan sedang dinonaktifkan')
+        ->assertDontSee('href="'.route('reports.create.form', 'fasilitas').'"', false);
+
+    SiteSetting::query()->whereKey(1)->update([
+        'facility_reports_enabled' => false,
+        'aspiration_reports_enabled' => false,
+        'violation_reports_enabled' => false,
+    ]);
+
+    $superAdmin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+
+    Livewire::actingAs($superAdmin)
+        ->test(AdminSettingsIndex::class)
+        ->call('setAllReportTypesEnabled', true)
+        ->call('saveReportAvailability')
+        ->assertHasNoErrors()
+        ->assertDispatched('app-notification', message: 'Pilihan jenis laporan berhasil disimpan.', type: 'success');
+
+    $this->actingAs($student)->withSession(['auth_version' => $student->auth_version]);
+
+    foreach ([ReportType::FACILITAS, ReportType::ASPIRASI, ReportType::PELANGGARAN] as $code) {
+        $this->assertDatabaseHas('report_types', ['code' => $code]);
+        $this->get(route('reports.create', ['type' => $code]))
+            ->assertOk()
+            ->assertSee(route('reports.create.form', $code));
+
+        $this->get(route('reports.create.form', $code))->assertOk();
+    }
+});
+
+it('keeps dashboard, sidebar, selector, and form choices aligned with saved availability', function (): void {
+    $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
+
+    Livewire::actingAs($superAdmin)
+        ->test(AdminSettingsIndex::class)
+        ->set('facilityReportsEnabled', false)
+        ->set('aspirationReportsEnabled', true)
+        ->set('violationReportsEnabled', false)
+        ->call('saveReportAvailability')
+        ->assertHasNoErrors();
+
+    $student = User::factory()->create(['role' => UserRole::MAHASISWA, 'must_change_password' => false]);
+    $this->actingAs($student)->withSession(['auth_version' => $student->auth_version]);
+
+    $this->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('href="'.route('reports.create').'" class="portal-nav-link"', false)
+        ->assertSee('href="'.route('reports.create.form', 'aspirasi').'"', false)
+        ->assertDontSee('href="'.route('reports.create.form', 'fasilitas').'"', false)
+        ->assertDontSee('href="'.route('reports.create.form', 'pelanggaran').'"', false);
+
+    $this->get(route('reports.create'))
+        ->assertOk()
+        ->assertSee('href="'.route('reports.create.form', 'aspirasi').'"', false)
+        ->assertDontSee('href="'.route('reports.create.form', 'fasilitas').'"', false)
+        ->assertDontSee('href="'.route('reports.create.form', 'pelanggaran').'"', false);
+
+    $this->get(route('reports.create.form', 'aspirasi'))
+        ->assertOk()
+        ->assertDontSee('href="'.route('reports.create.form', 'fasilitas').'"', false)
+        ->assertDontSee('href="'.route('reports.create.form', 'pelanggaran').'"', false);
+
+    $this->get(route('reports.create.form', 'fasilitas'))->assertNotFound();
+    $this->get(route('reports.create.form', 'pelanggaran'))->assertNotFound();
 });
 
 it('shows maintenance to regular accounts and forbids them from changing the setting', function (): void {

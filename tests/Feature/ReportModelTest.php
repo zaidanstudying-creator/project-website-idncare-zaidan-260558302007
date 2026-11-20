@@ -108,6 +108,28 @@ it('shows only approved public non-violation reports in the public scope', funct
     expect(Report::query()->public()->sole()->is($publicFacility))->toBeTrue();
 });
 
+it('renders the public report detail as a valid single-root Livewire page', function (): void {
+    $reporter = User::factory()->create();
+    $student = User::factory()->create([
+        'role' => UserRole::MAHASISWA,
+        'must_change_password' => false,
+    ]);
+    $facility = ReportType::create(['code' => ReportType::FACILITAS, 'name' => 'Laporan Fasilitas']);
+    $publicReport = createScopedReport($facility, $reporter, [
+        'title' => 'Lampu taman rusak',
+        'requested_visibility' => Report::VISIBILITY_UMUM,
+        'visibility_status' => Report::VISIBILITY_APPROVED,
+        'approved_visibility' => Report::VISIBILITY_UMUM,
+    ]);
+
+    $this->actingAs($student)
+        ->withSession(['auth_version' => $student->auth_version])
+        ->get(route('monitor.show', $publicReport))
+        ->assertOk()
+        ->assertSee('Kembali ke laporan umum')
+        ->assertSee('Lampu taman rusak');
+});
+
 it('limits unit admins and lets students see owned and public reports', function (): void {
     config(['app.report_key' => str_repeat('b', 64)]);
     $student = User::factory()->create();

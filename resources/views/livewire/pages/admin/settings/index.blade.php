@@ -54,9 +54,9 @@
                 </div>
             </div>
             <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model="facilityReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Laporan fasilitas</span></label>
-                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model="aspirationReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Aspirasi</span></label>
-                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model="violationReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Pengaduan pelanggaran</span></label>
+                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model.live="facilityReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Laporan fasilitas</span></label>
+                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model.live="aspirationReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Aspirasi</span></label>
+                <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-100 p-4 text-sm font-bold text-slate-800"><input wire:model.live="violationReportsEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500"><span>Pengaduan pelanggaran</span></label>
             </div>
             <p class="mt-4 text-xs leading-5 text-slate-500">Simpan pilihan di bagian ini tanpa mengubah pengaturan lain. Laporan lama tetap tersimpan.</p>
             <div class="mt-4 flex justify-end"><button type="button" wire:click="saveReportAvailability" wire:loading.attr="disabled" wire:target="saveReportAvailability" class="rounded-full bg-gradient-to-r from-[#0B5FFF] to-[#1AA7E8] px-6 py-3 font-bold text-white shadow-sm transition hover:-translate-y-0.5 disabled:opacity-60">Simpan pilihan laporan</button></div>
@@ -73,6 +73,26 @@
                     <textarea wire:model="announcementText" rows="3" maxlength="1000" placeholder="Tulis informasi penting untuk pengguna portal" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"></textarea>
                     @error('announcementText') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
                 </label>
+                @foreach ($additionalAnnouncements as $index => $announcement)
+                    <div wire:key="announcement-{{ $index }}" class="grid gap-2">
+                        <label for="announcement-{{ $index }}" class="text-sm font-bold">Pengumuman tambahan</label>
+                        <textarea id="announcement-{{ $index }}" wire:model="additionalAnnouncements.{{ $index }}" rows="2" maxlength="1000" class="w-full rounded-2xl border border-blue-100 px-4 py-3"></textarea>
+                        @error('additionalAnnouncements.'.$index)<span class="text-sm text-rose-700">{{ $message }}</span>@enderror
+                        <button type="button" wire:click="removeAnnouncement({{ $index }})" class="justify-self-start text-sm font-semibold underline">Hapus pengumuman ini</button>
+                    </div>
+                @endforeach
+                @if (count($additionalAnnouncements) < 9)
+                    <button type="button" wire:click="addAnnouncement" class="justify-self-start rounded-full border border-blue-200 px-4 py-2 font-semibold">+ Tambah pengumuman</button>
+                @endif
+                <div class="grid gap-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <label for="announcement-speed" class="text-sm font-bold text-slate-800">Kecepatan running text</label>
+                        <output for="announcement-speed" class="text-sm font-bold text-[#0B5FFF]">{{ $announcementSpeed }} detik per putaran</output>
+                    </div>
+                    <input id="announcement-speed" name="announcementSpeed" wire:model.live.debounce.300ms="announcementSpeed" type="range" min="15" max="90" step="5" aria-describedby="announcement-speed-help" class="w-full accent-[#0B5FFF]">
+                    <p id="announcement-speed-help" class="text-xs leading-5 text-slate-500">15 detik bergerak lebih cepat; 90 detik lebih lambat. Simpan bersama pengaturan portal.</p>
+                    @error('announcementSpeed') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
+                </div>
                 <label class="flex items-center gap-3 text-sm font-bold text-slate-800"><input wire:model="announcementEnabled" type="checkbox" class="size-5 rounded border-blue-200 text-blue-600 focus:ring-blue-500">Tampilkan pengumuman di portal</label>
             </div>
         </section>
@@ -90,19 +110,24 @@
             <h2 class="text-xl font-extrabold text-[#0A1F44]">Editor pesan maintenance</h2>
             <p class="mt-1 text-sm text-slate-600">Atur pesan yang dilihat pengunjung saat maintenance aktif.</p>
             <div class="mt-5 grid gap-5">
-                <label class="space-y-2 text-sm font-bold text-slate-800">Judul
+                <label class="flex flex-col gap-2 text-sm font-bold text-slate-800"><span>Judul</span>
                     <input wire:model="maintenanceTitle" type="text" maxlength="120" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium">
                     @error('maintenanceTitle') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
                 </label>
-                <label class="space-y-2 text-sm font-bold text-slate-800">Pesan
+                <label class="flex flex-col gap-2 text-sm font-bold text-slate-800"><span>Judul utama ke-2</span>
+                    <input wire:model="maintenanceSecondaryTitle" type="text" maxlength="120" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium">
+                    @error('maintenanceSecondaryTitle') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
+                </label>
+                <label class="flex flex-col gap-2 text-sm font-bold text-slate-800"><span>Pesan</span>
                     <textarea wire:model="maintenanceMessage" rows="3" maxlength="1000" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium"></textarea>
                     @error('maintenanceMessage') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
                 </label>
-                <label class="space-y-2 text-sm font-bold text-slate-800">Coming Soon
+                <label class="flex flex-col gap-2 text-sm font-bold text-slate-800"><span>Coming Soon</span>
                     <input wire:model="maintenanceComingSoon" type="text" maxlength="80" class="w-full rounded-2xl border border-blue-100 px-4 py-3 font-medium">
                     @error('maintenanceComingSoon') <span class="block text-xs text-rose-700">{{ $message }}</span> @enderror
                 </label>
                 <div class="flex flex-wrap items-center gap-3">
+                    <button type="button" wire:click="saveMaintenanceMessages" wire:loading.attr="disabled" wire:target="saveMaintenanceMessages" class="min-h-12 rounded-full bg-gradient-to-r from-[#0B5FFF] to-[#1AA7E8] px-5 py-3 font-bold text-white shadow-sm transition hover:-translate-y-0.5 disabled:opacity-60">Simpan pesan maintenance</button>
                     <button type="button" wire:click="toggleMaintenancePreview" class="rounded-full border border-blue-200 px-5 py-3 font-bold text-blue-700 transition hover:bg-blue-50">{{ $previewingMaintenance ? 'Tutup pratinjau' : 'Pratinjau halaman' }}</button>
                     @if ($setting?->maintenance_updated_at)
                         <p class="text-sm text-slate-600">Maintenance terakhir diubah {{ $setting->maintenance_updated_at->timezone('Asia/Jakarta')->format('d M Y, H:i') }} oleh {{ $setting->maintenanceEditor?->name ?? 'akun yang sudah dihapus' }}.</p>

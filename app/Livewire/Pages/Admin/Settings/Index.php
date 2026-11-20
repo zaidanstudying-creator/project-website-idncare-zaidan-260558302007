@@ -3,6 +3,7 @@
 namespace App\Livewire\Pages\Admin\Settings;
 
 use App\Enums\UserRole;
+use App\Models\ReportType;
 use App\Models\SiteSetting;
 use App\Services\ActivityLogService;
 use Illuminate\Contracts\View\View;
@@ -29,7 +30,12 @@ class Index extends Component
 
     public ?string $announcementText = null;
 
+    /** @var array<int, string> */
+    public array $additionalAnnouncements = [];
+
     public bool $announcementEnabled = false;
+
+    public int $announcementSpeed = 35;
 
     public bool $facilityReportsEnabled = true;
 
@@ -40,6 +46,8 @@ class Index extends Component
     public int $fontScale = 100;
 
     public string $maintenanceTitle = 'Waduh, maaf ya!';
+
+    public string $maintenanceSecondaryTitle = 'Situs sedang dibangun.';
 
     public string $maintenanceMessage = 'Website sedang dirawat sebentar. Kami segera kembali.';
 
@@ -65,16 +73,33 @@ class Index extends Component
         $this->campusName = $setting?->campus_name ?? $this->campusName;
         $this->tagline = $setting?->tagline ?? $this->tagline;
         $this->supportContact = $setting?->support_contact;
-        $this->announcementText = $setting?->announcement_text;
+        $announcementMessages = explode("\n", $setting?->announcement_text ?? '');
+        $this->announcementText = array_shift($announcementMessages);
+        $this->additionalAnnouncements = $announcementMessages;
         $this->announcementEnabled = (bool) $setting?->announcement_enabled;
+        $this->announcementSpeed = (int) ($setting?->announcement_speed ?? $this->announcementSpeed);
         $this->facilityReportsEnabled = (bool) ($setting?->facility_reports_enabled ?? true);
         $this->aspirationReportsEnabled = (bool) ($setting?->aspiration_reports_enabled ?? true);
         $this->violationReportsEnabled = (bool) ($setting?->violation_reports_enabled ?? true);
         $this->fontScale = $setting?->font_scale ?? $this->fontScale;
         $this->maintenanceTitle = $setting?->maintenance_title ?? $this->maintenanceTitle;
+        $this->maintenanceSecondaryTitle = $setting?->maintenance_secondary_title ?? $this->maintenanceSecondaryTitle;
         $this->maintenanceMessage = $setting?->maintenance_message ?? $this->maintenanceMessage;
         $this->maintenanceComingSoon = $setting?->maintenance_coming_soon ?? $this->maintenanceComingSoon;
         $this->currentLogoPath = $setting?->logo_path;
+    }
+
+    public function addAnnouncement(): void
+    {
+        if (count($this->additionalAnnouncements) < 9) {
+            $this->additionalAnnouncements[] = '';
+        }
+    }
+
+    public function removeAnnouncement(int $index): void
+    {
+        unset($this->additionalAnnouncements[$index]);
+        $this->resetValidation('additionalAnnouncements.'.$index);
     }
 
     public function saveSettings(): void
@@ -84,12 +109,16 @@ class Index extends Component
             'tagline' => ['required', 'string', 'max:180'],
             'supportContact' => ['nullable', 'string', 'max:180'],
             'announcementText' => ['nullable', 'string', 'max:1000'],
+            'additionalAnnouncements' => ['array', 'max:9'],
+            'additionalAnnouncements.*' => ['required', 'string', 'max:1000'],
             'announcementEnabled' => ['boolean'],
+            'announcementSpeed' => ['required', 'integer', 'min:15', 'max:90'],
             'facilityReportsEnabled' => ['boolean'],
             'aspirationReportsEnabled' => ['boolean'],
             'violationReportsEnabled' => ['boolean'],
             'fontScale' => ['required', 'integer', 'in:100,110,125'],
             'maintenanceTitle' => ['required', 'string', 'max:120'],
+            'maintenanceSecondaryTitle' => ['required', 'string', 'max:120'],
             'maintenanceMessage' => ['required', 'string', 'max:1000'],
             'maintenanceComingSoon' => ['required', 'string', 'max:80'],
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
@@ -105,13 +134,18 @@ class Index extends Component
             'campus_name' => $validated['campusName'],
             'tagline' => $validated['tagline'],
             'support_contact' => $validated['supportContact'],
-            'announcement_text' => $validated['announcementText'],
+            'announcement_text' => implode("\n", array_filter(array_map(
+                fn (string $message): string => trim(preg_replace('/\s+/u', ' ', $message)),
+                [$validated['announcementText'] ?? '', ...$validated['additionalAnnouncements']],
+            ), fn (string $message): bool => $message !== '')),
             'announcement_enabled' => $validated['announcementEnabled'],
+            'announcement_speed' => $validated['announcementSpeed'],
             'facility_reports_enabled' => $validated['facilityReportsEnabled'],
             'aspiration_reports_enabled' => $validated['aspirationReportsEnabled'],
             'violation_reports_enabled' => $validated['violationReportsEnabled'],
             'font_scale' => $validated['fontScale'],
             'maintenance_title' => $validated['maintenanceTitle'],
+            'maintenance_secondary_title' => $validated['maintenanceSecondaryTitle'],
             'maintenance_message' => $validated['maintenanceMessage'],
             'maintenance_coming_soon' => $validated['maintenanceComingSoon'],
         ];
@@ -120,7 +154,10 @@ class Index extends Component
         }
 
         try {
-            DB::transaction(fn () => SiteSetting::query()->whereKey(1)->update($attributes));
+            DB::transaction(function () use ($attributes): void {
+                ReportType::ensureDefaults();
+                SiteSetting::query()->whereKey(1)->update($attributes);
+            });
         } catch (QueryException $exception) {
             report($exception);
             if (isset($validated['logo_path'])) {
@@ -139,6 +176,34 @@ class Index extends Component
         $this->dispatch('app-notification', message: 'Pengaturan berhasil disimpan.', type: 'success');
     }
 
+    public function saveMaintenanceMessages(): void
+    {
+        $validated = $this->validate([
+            'maintenanceTitle' => ['required', 'string', 'max:120'],
+            'maintenanceSecondaryTitle' => ['required', 'string', 'max:120'],
+            'maintenanceMessage' => ['required', 'string', 'max:1000'],
+            'maintenanceComingSoon' => ['required', 'string', 'max:80'],
+        ]);
+
+        try {
+            DB::transaction(fn () => SiteSetting::query()->whereKey(1)->update([
+                'maintenance_title' => $validated['maintenanceTitle'],
+                'maintenance_secondary_title' => $validated['maintenanceSecondaryTitle'],
+                'maintenance_message' => $validated['maintenanceMessage'],
+                'maintenance_coming_soon' => $validated['maintenanceComingSoon'],
+                'maintenance_updated_at' => now(),
+                'maintenance_updated_by' => auth()->id(),
+            ]));
+        } catch (QueryException $exception) {
+            report($exception);
+            $this->dispatch('app-notification', message: 'Pesan maintenance belum tersimpan. Jalankan migrasi database terbaru di hosting, lalu coba lagi.', type: 'error');
+
+            return;
+        }
+
+        $this->dispatch('app-notification', message: 'Pesan maintenance berhasil disimpan.', type: 'success');
+    }
+
     public function setAllReportTypesEnabled(bool $enabled): void
     {
         $this->facilityReportsEnabled = $enabled;
@@ -155,14 +220,35 @@ class Index extends Component
         ]);
 
         try {
-            DB::transaction(fn () => SiteSetting::query()->whereKey(1)->update([
-                'facility_reports_enabled' => $validated['facilityReportsEnabled'],
-                'aspiration_reports_enabled' => $validated['aspirationReportsEnabled'],
-                'violation_reports_enabled' => $validated['violationReportsEnabled'],
-            ]));
+            DB::transaction(function () use ($validated): void {
+                ReportType::ensureDefaults();
+                SiteSetting::query()->whereKey(1)->update([
+                    'facility_reports_enabled' => $validated['facilityReportsEnabled'],
+                    'aspiration_reports_enabled' => $validated['aspirationReportsEnabled'],
+                    'violation_reports_enabled' => $validated['violationReportsEnabled'],
+                ]);
+            });
         } catch (QueryException $exception) {
             report($exception);
             $this->dispatch('app-notification', message: 'Pilihan laporan belum tersimpan. Periksa migrasi database di hosting, lalu coba lagi.', type: 'error');
+
+            return;
+        }
+
+        $savedSetting = SiteSetting::current();
+        if (! $savedSetting) {
+            $this->dispatch('app-notification', message: 'Pilihan laporan belum tersimpan. Periksa database lalu coba lagi.', type: 'error');
+
+            return;
+        }
+
+        $this->facilityReportsEnabled = (bool) $savedSetting->facility_reports_enabled;
+        $this->aspirationReportsEnabled = (bool) $savedSetting->aspiration_reports_enabled;
+        $this->violationReportsEnabled = (bool) $savedSetting->violation_reports_enabled;
+        if ($this->facilityReportsEnabled !== $validated['facilityReportsEnabled']
+            || $this->aspirationReportsEnabled !== $validated['aspirationReportsEnabled']
+            || $this->violationReportsEnabled !== $validated['violationReportsEnabled']) {
+            $this->dispatch('app-notification', message: 'Pilihan laporan belum tersimpan sesuai perubahan. Coba lagi.', type: 'error');
 
             return;
         }
@@ -217,8 +303,8 @@ class Index extends Component
         }
 
         return str_replace(
-            ['Waduh, maaf ya!', 'Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.', 'COMING SOON'],
-            [e($this->maintenanceTitle), nl2br(e($this->maintenanceMessage)), e($this->maintenanceComingSoon)],
+            ['Waduh, maaf ya!', '__MAINTENANCE_SECONDARY_TITLE__', 'Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.', 'COMING SOON'],
+            [e($this->maintenanceTitle), e($this->maintenanceSecondaryTitle), nl2br(e($this->maintenanceMessage)), e($this->maintenanceComingSoon)],
             $maintenanceContent,
         );
     }

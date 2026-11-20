@@ -1,4 +1,7 @@
 <script>
+document.documentElement.classList.remove('no-js');
+document.documentElement.classList.add('js');
+
 try {
     const themePreference = JSON.parse(localStorage.getItem('idn-care-theme-settings') || 'null');
     const legacyTheme = localStorage.getItem('idn-care-theme');

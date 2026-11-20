@@ -81,7 +81,7 @@ class Index extends Component
             ->when($filters['status'], fn (Builder $query, string $status) => $query->where('status', $status))
             ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $query) => $query
                 ->where('ticket_no', 'like', '%'.$search.'%')->orWhere('title', 'like', '%'.$search.'%')))
-            ->orderByDesc('created_at')->orderByDesc('id')->paginate(10);
+            ->orderByDesc('created_at')->orderByDesc('id')->paginate(10)->onEachSide(1);
 
         $counts = [
             'total' => (clone $ownedReports)->count(),

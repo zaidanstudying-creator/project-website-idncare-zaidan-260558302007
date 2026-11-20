@@ -14,6 +14,7 @@ $portalSetting = \App\Models\SiteSetting::current();
 <body class="public-body {{ $bodyClass ?? '' }} @yield('body-class')" style="font-size: {{ $portalSetting?->font_scale ?? 100 }}%">
 <a class="skip-link" href="#konten">Lewati ke konten</a>
 <div wire:offline role="status" aria-live="polite" class="portal-offline-alert"><strong>Koneksi perangkat terputus.</strong> Aksi belum dapat dijalankan. Pulihkan koneksi dan periksa status halaman sebelum mengulangi perubahan.</div>
+<x-states.loading-overlay />
 <div id="app-notification-toasts" class="app-notification-toasts" role="region" aria-label="Notifikasi aplikasi" aria-live="polite" aria-relevant="additions text"></div>
 @if (session('status'))<div hidden data-flash-notification data-type="success">{{ session('status') }}</div>@endif
 @if (session('error'))<div hidden data-flash-notification data-type="error">{{ session('error') }}</div>@endif
@@ -27,7 +28,13 @@ $portalSetting = \App\Models\SiteSetting::current();
 @endauth
 </header>
 @endunless
-<div id="konten">@if($portalSetting?->announcement_enabled && filled($portalSetting->announcement_text))<aside role="status" class="mx-auto my-5 max-w-6xl rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-4 text-sm font-semibold text-[#0A1F44]">{{ $portalSetting->announcement_text }}</aside>@endif @hasSection('content')@yield('content')@else{{ $slot ?? '' }}@endif</div>
+<div id="konten">@if(!($hideAnnouncements ?? false) && $portalSetting?->announcement_enabled && filled($portalSetting->announcement_text))
+<aside role="status" class="announcement-ticker announcement-ticker-public" data-announcement-marquee data-scrolling="false" style="--announcement-duration: {{ min(90, max(15, (int) ($portalSetting->announcement_speed ?? 35))) }}s">
+    <span class="announcement-ticker-dot" aria-hidden="true"></span>
+    <div class="announcement-ticker-window"><div class="announcement-ticker-track"><span>{{ str_replace("\n", ' • ', $portalSetting->announcement_text) }}</span><span aria-hidden="true">{{ str_replace("\n", ' • ', $portalSetting->announcement_text) }}</span></div></div>
+    <button type="button" class="announcement-ticker-close" data-announcement-dismiss aria-label="Tutup pengumuman">×</button>
+</aside>
+@endif @hasSection('content')@yield('content')@else{{ $slot ?? '' }}@endif</div>
 @unless(($hidePublicNav ?? false) || View::hasSection('hide-public-nav'))<footer class="public-footer">{{ $portalSetting?->campus_name ?? 'IDN CARE' }} · {{ $portalSetting?->tagline ?? 'Layanan pelaporan dan aspirasi kampus' }} @if($portalSetting?->support_contact)· Bantuan: {{ $portalSetting->support_contact }}@endif</footer>@endunless
 @livewireScripts
 </body></html>

@@ -91,7 +91,7 @@ class Index extends Component
 
     public function render(): View
     {
-        $locations = Location::query()->withCount('reports')->orderBy('name')->paginate(10);
+        $locations = Location::query()->withCount('reports')->orderBy('name')->paginate(10)->onEachSide(1);
         foreach ($locations as $location) {
             $this->locationEdits[$location->id] ??= [
                 'name' => $location->name,

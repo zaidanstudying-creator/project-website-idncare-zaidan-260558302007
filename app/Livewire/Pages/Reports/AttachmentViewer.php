@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pages\Reports;
 
+use App\Enums\UserRole;
 use App\Models\Report;
 use App\Models\ReportAttachment;
 use Illuminate\Contracts\View\View;
@@ -45,8 +46,11 @@ class AttachmentViewer extends Component
         $contentType = $disk->mimeType($attachment->file_path) ?? 'application/octet-stream';
         abort_unless(str_starts_with($contentType, 'image/'), 404);
         $image = 'data:'.$contentType.';base64,'.base64_encode($disk->get($attachment->file_path));
+        $backUrl = auth()->user()?->role === UserRole::MAHASISWA
+            ? route('reports.show', $attachment->report_id)
+            : route('admin.reports.show', $attachment->report_id);
 
-        return view('livewire.pages.reports.attachment-viewer', compact('attachment', 'image'))
+        return view('livewire.pages.reports.attachment-viewer', compact('attachment', 'backUrl', 'image'))
             ->title('Lampiran laporan');
     }
 

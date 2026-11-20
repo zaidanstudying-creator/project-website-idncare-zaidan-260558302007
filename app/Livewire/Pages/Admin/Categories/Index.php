@@ -113,7 +113,7 @@ class Index extends Component
             ->whereIn('report_type_id', $reportTypes->modelKeys())
             ->orderBy('report_type_id')
             ->orderBy('name')
-            ->paginate(10);
+            ->paginate(10)->onEachSide(1);
 
         foreach ($categories as $category) {
             $this->categoryEdits[$category->id] ??= [

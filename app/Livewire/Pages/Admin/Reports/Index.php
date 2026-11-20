@@ -87,7 +87,7 @@ class Index extends Component
             ->when($filters['locationId'], fn (Builder $query, string $locationId) => $query->where('location_id', (int) $locationId))
             ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $query) => $query
                 ->where('ticket_no', 'like', '%'.$search.'%')->orWhere('title', 'like', '%'.$search.'%')))
-            ->orderByDesc('created_at')->orderByDesc('id')->paginate(10);
+            ->orderByDesc('created_at')->orderByDesc('id')->paginate(10)->onEachSide(1);
 
         // Do not resolve reporter relationships for token-linked anonymous violation reports.
         $reports->getCollection()

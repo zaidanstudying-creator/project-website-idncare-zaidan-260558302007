@@ -71,11 +71,12 @@ class MaintenancePage
 
         $setting = SiteSetting::current();
         $title = e($setting?->maintenance_title ?: 'Waduh, maaf ya!');
+        $secondaryTitle = e($setting?->maintenance_secondary_title ?: 'Situs sedang dibangun.');
         $message = nl2br(e($setting?->maintenance_message ?: 'Website sedang dirawat sebentar. Kami segera kembali.'));
         $comingSoon = e($setting?->maintenance_coming_soon ?: 'COMING SOON');
         $maintenanceContent = str_replace(
-            ['Waduh, maaf ya!', 'Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.', 'COMING SOON'],
-            [$title, $message, $comingSoon],
+            ['Waduh, maaf ya!', '__MAINTENANCE_SECONDARY_TITLE__', 'Kami sedang memperbarui IDN CARE agar layanan segera kembali dengan pengalaman yang lebih baik. Terima kasih sudah menunggu.', 'COMING SOON'],
+            [$title, $secondaryTitle, $message, $comingSoon],
             $maintenanceContent,
         );
 

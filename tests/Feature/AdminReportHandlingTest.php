@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Pages\Admin\Reports\Show as AdminReportShow;
 use App\Models\Category;
 use App\Models\Location;
 use App\Models\Report;
@@ -11,6 +12,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -83,7 +85,10 @@ it('shows a token-owned anonymous violation without loading or displaying report
         ->assertDontSee('Nama Sangat Rahasia')
         ->assertDontSee('ID-IDENTITAS-RAHASIA');
 
-    expect($response->viewData('report')->relationLoaded('reporter'))->toBeFalse();
+    $this->withSession(['auth_version' => $kemahasiswaan->auth_version]);
+    $renderedReport = Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->instance()->render()->getData()['report'];
+    expect($renderedReport->relationLoaded('reporter'))->toBeFalse();
 });
 
 it('stores a status transition, history, and private after photo atomically', function (): void {
@@ -92,11 +97,12 @@ it('stores a status transition, history, and private after photo atomically', fu
     $report = handlingReport(handlingType(ReportType::FACILITAS), $student, ['status' => Report::STATUS_DIPROSES]);
     $admin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
 
-    $this->actingAs($admin)->put(route('admin.reports.status.update', $report), [
-        'status' => Report::STATUS_SELESAI,
-        'after_photo' => UploadedFile::fake()->image('after.jpg'),
-        'note' => 'Perbaikan selesai.',
-    ])->assertRedirect(route('admin.reports.show', $report));
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_SELESAI)
+        ->set('afterPhoto', UploadedFile::fake()->image('after.jpg'))
+        ->set('note', 'Perbaikan selesai.')
+        ->call('updateStatus')->assertHasNoErrors();
 
     $attachment = ReportAttachment::query()->sole();
     $history = ReportStatusHistory::query()->where('report_id', $report->id)->sole();
@@ -117,10 +123,28 @@ it('requires an after photo before completing a facility report and preserves st
     $report = handlingReport(handlingType(ReportType::FACILITAS), $student, ['status' => Report::STATUS_DIPROSES]);
     $admin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
 
-    $this->actingAs($admin)->from(route('admin.reports.show', $report))
-        ->put(route('admin.reports.status.update', $report), ['status' => Report::STATUS_SELESAI])
-        ->assertRedirect(route('admin.reports.show', $report))
-        ->assertSessionHasErrors('after_photo');
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_SELESAI)
+        ->call('updateStatus')->assertHasErrors('afterPhoto');
+
+    expect($report->fresh()->status)->toBe(Report::STATUS_DIPROSES)
+        ->and(ReportStatusHistory::query()->where('report_id', $report->id)->count())->toBe(0)
+        ->and(ReportAttachment::query()->count())->toBe(0);
+});
+
+it('shows the after photo requirement beside the upload field when completion lacks evidence', function (): void {
+    $student = User::factory()->create(['must_change_password' => false]);
+    $report = handlingReport(handlingType(ReportType::FACILITAS), $student, ['status' => Report::STATUS_DIPROSES]);
+    $admin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
+
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_SELESAI)
+        ->call('updateStatus')
+        ->assertHasErrors('afterPhoto')
+        ->assertSee('Unggah minimal satu foto sesudah sebelum laporan fasilitas diselesaikan.');
 
     expect($report->fresh()->status)->toBe(Report::STATUS_DIPROSES)
         ->and(ReportStatusHistory::query()->where('report_id', $report->id)->count())->toBe(0)
@@ -132,13 +156,15 @@ it('requires a rejection reason and stores it in the report and history', functi
     $report = handlingReport(handlingType(ReportType::ASPIRASI), $student, ['status' => Report::STATUS_DIVERIFIKASI]);
     $admin = User::factory()->create(['role' => UserRole::ADMIN_KEMAHASISWAAN, 'must_change_password' => false]);
 
-    $this->actingAs($admin)->put(route('admin.reports.status.update', $report), ['status' => Report::STATUS_DITOLAK])
-        ->assertSessionHasErrors('note');
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_DITOLAK)
+        ->call('updateStatus')->assertHasErrors('note');
 
-    $this->put(route('admin.reports.status.update', $report), [
-        'status' => Report::STATUS_DITOLAK,
-        'note' => 'Alasan penolakan yang jelas.',
-    ])->assertRedirect(route('admin.reports.show', $report));
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_DITOLAK)
+        ->set('note', 'Alasan penolakan yang jelas.')
+        ->call('updateStatus')->assertHasNoErrors();
 
     expect($report->fresh()->status)->toBe(Report::STATUS_DITOLAK)
         ->and($report->fresh()->rejected_reason)->toBe('Alasan penolakan yang jelas.')
@@ -152,13 +178,17 @@ it('rejects skipped transitions and prevents super admin or students from changi
     $sarpras = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
     $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
 
-    $this->actingAs($sarpras)->put(route('admin.reports.status.update', $report), ['status' => Report::STATUS_SELESAI])
-        ->assertSessionHasErrors('status');
+    $this->actingAs($sarpras)->withSession(['auth_version' => $sarpras->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_SELESAI)
+        ->call('updateStatus')->assertHasErrors('status');
     $this->actingAs($superAdmin)->get(route('admin.reports.show', $report))->assertOk();
-    $this->put(route('admin.reports.status.update', $report), ['status' => Report::STATUS_DIVERIFIKASI])
-        ->assertForbidden();
-    $this->actingAs($student)->put(route('admin.reports.status.update', $report), ['status' => Report::STATUS_DIVERIFIKASI])
-        ->assertForbidden();
+    $this->withSession(['auth_version' => $superAdmin->auth_version]);
+    Livewire::test(AdminReportShow::class, ['report' => $report])
+        ->set('status', Report::STATUS_DIVERIFIKASI)
+        ->call('updateStatus')->assertForbidden();
+    $this->actingAs($student)->withSession(['auth_version' => $student->auth_version]);
+    $this->get(route('admin.reports.show', $report))->assertForbidden();
 
     expect($report->fresh()->status)->toBe(Report::STATUS_DIKIRIM)
         ->and(ReportStatusHistory::query()->where('report_id', $report->id)->count())->toBe(0);

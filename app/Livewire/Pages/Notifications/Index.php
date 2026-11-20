@@ -22,7 +22,7 @@ class Index extends Component
 
     public function render(): View
     {
-        $notifications = auth()->user()->notifications()->latest()->paginate(20);
+        $notifications = auth()->user()->notifications()->latest()->paginate(20)->onEachSide(1);
 
         return view('livewire.pages.notifications.index', compact('notifications'))->title('Notifikasi');
     }

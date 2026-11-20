@@ -1,3 +1,4 @@
+<section aria-label="Detail laporan umum" class="grid gap-4">
     <a href="{{ route('monitor.index') }}" class="w-fit text-sm font-bold text-[#0B5FFF] hover:underline">← Kembali ke laporan umum</a>
 
     <article class="overflow-hidden rounded-[30px] border border-blue-100 bg-white shadow-sm">
@@ -11,3 +12,4 @@
             </div>
         @endif
     </article>
+</section>

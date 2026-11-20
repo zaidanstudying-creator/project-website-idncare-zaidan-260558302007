@@ -30,8 +30,8 @@
         </div>
 
         <nav aria-label="Jenis laporan" class="mt-5 flex flex-wrap gap-2">
-            @foreach ($typeLabels as $code => $label)
-                <a href="{{ route('reports.create.form', $code) }}" @class(['rounded-full border px-5 py-2.5 text-sm font-bold', 'bg-gradient-to-r from-[#0B5FFF] to-[#1AA7E8] text-white' => $reportType->code === $code, 'border-blue-200 bg-white text-[#0B5FFF]' => $reportType->code !== $code]) @if($reportType->code === $code) aria-current="page" @endif>{{ $label }}</a>
+            @foreach ($availableReportTypes as $availableReportType)
+                <a href="{{ route('reports.create.form', $availableReportType->code) }}" @class(['rounded-full border px-5 py-2.5 text-sm font-bold', 'bg-gradient-to-r from-[#0B5FFF] to-[#1AA7E8] text-white' => $reportType->is($availableReportType), 'border-blue-200 bg-white text-[#0B5FFF]' => ! $reportType->is($availableReportType)]) @if($reportType->is($availableReportType)) aria-current="page" @endif>{{ $typeLabels[$availableReportType->code] }}</a>
             @endforeach
         </nav>
 
@@ -125,15 +125,15 @@
                     <label for="photos" class="mb-2 block text-sm font-bold">
                         @if ($isFacility) Foto kerusakan <span class="text-red-600">*</span> @elseif ($isViolation) Bukti foto (opsional) @else Foto pendukung (opsional) @endif
                     </label>
-                    <div class="rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/70 p-6 text-center sm:p-8">
+                    <div class="report-photo-upload rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/70 p-6 text-center sm:p-8">
                         <p class="font-bold">Pilih foto untuk dilampirkan</p>
                         <p class="mt-2 text-sm text-slate-600">{{ $isFacility ? 'Wajib minimal satu foto.' : 'Lampiran boleh dikosongkan.' }} JPG atau PNG, maksimal 5 foto dan 4 MB per foto. Foto akan diperkecil otomatis jika total unggahan terlalu besar.</p>
-                        <input id="photos" wire:model="photos" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple data-file-preview="photo-preview" @required($isFacility) class="mt-4 block w-full cursor-pointer rounded-xl border border-blue-100 bg-white p-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:font-semibold file:text-[#0B5FFF]" @if ($photoErrors) aria-invalid="true" aria-describedby="photos-error" @endif>
-                        <p data-photo-upload-status role="status" aria-live="polite" class="mt-3 text-sm text-slate-600">Unggahan foto dibatasi agar laporan bisa terkirim dengan lancar.</p>
+                        <input id="photos" wire:model="photos" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple data-file-preview="photo-preview" @required($isFacility) class="report-photo-input mt-4 block w-full cursor-pointer rounded-xl border border-blue-100 bg-white p-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:font-semibold file:text-[#0B5FFF]" @if ($photoErrors) aria-invalid="true" aria-describedby="photos-error" @endif>
+                        <div id="photo-preview" class="report-photo-preview mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3" aria-live="polite"></div>
+                        <p data-photo-upload-status role="status" aria-live="polite" class="report-photo-help mt-3 text-sm text-slate-600">Unggahan foto dibatasi agar laporan bisa terkirim dengan lancar.</p>
                         <p wire:loading wire:target="photos" role="status" class="mt-2 text-sm font-semibold text-[#0B5FFF]">Mengunggah foto…</p>
                         @if ($photoErrors)<div id="photos-error" class="field-error">@foreach ($errors->getMessages() as $key => $messages)@if (str_starts_with($key, 'photos'))@foreach ($messages as $message)<p>{{ $message }}</p>@endforeach @endif @endforeach</div>@endif
                     </div>
-                    <div id="photo-preview" class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3" aria-live="polite"></div>
                 </div>
 
                 @if ($isViolation)

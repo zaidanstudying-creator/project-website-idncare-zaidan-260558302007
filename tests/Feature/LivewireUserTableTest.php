@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Pages\Admin\Users\Index as AdminUsersIndex;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -18,7 +19,8 @@ it('opens the account management page for a super admin', function (): void {
         ->get(route('admin.users.index'))
         ->assertOk()
         ->assertSee('Daftar akun')
-        ->assertSee('Cari ID atau nama');
+        ->assertSee('Cari ID atau nama')
+        ->assertSee('idn-loading-spinner');
 });
 
 it('lets super admins search and filter accounts without leaving the account page', function (): void {
@@ -84,6 +86,49 @@ it('rejects an obsolete account session from refreshing the account table', func
     $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version - 1]);
 
     Livewire::test('components.admin.user-table')->assertUnauthorized();
+});
+
+it('renders the correct student fields each time the account role changes', function (): void {
+    $admin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+
+    $component = Livewire::test(AdminUsersIndex::class);
+    $component->assertSeeHtml('wire:ignore.self');
+
+    expect((bool) preg_match('/<fieldset[^>]*data-student-fields[^>]*\shidden(?:\s|>)/', $component->html()))->toBeFalse();
+
+    $component->set('role', UserRole::ADMIN_SARPRAS->value)
+        ->assertSet('role', UserRole::ADMIN_SARPRAS->value)
+        ->assertSeeHtml('wire:ignore.self');
+
+    expect((bool) preg_match('/<fieldset[^>]*data-student-fields[^>]*\shidden(?:\s|>)/', $component->html()))->toBeTrue();
+
+    $component->set('role', UserRole::MAHASISWA->value)
+        ->assertSet('role', UserRole::MAHASISWA->value)
+        ->assertSeeHtml('wire:ignore.self');
+
+    expect((bool) preg_match('/<fieldset[^>]*data-student-fields[^>]*\shidden(?:\s|>)/', $component->html()))->toBeFalse();
+});
+
+it('clears temporary credentials when the success dialog is dismissed', function (): void {
+    $admin = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version]);
+
+    Livewire::test(AdminUsersIndex::class)
+        ->call('showCredentials', 'NEW-STUDENT-01', 'one-time-password')
+        ->assertSeeHtml('wire:click="dismissCredentials"')
+        ->assertSee('one-time-password')
+        ->call('dismissCredentials')
+        ->assertSet('temporaryPassword', null)
+        ->assertDontSee('one-time-password');
 });
 
 it('paginates account results in batches of twenty', function (): void {

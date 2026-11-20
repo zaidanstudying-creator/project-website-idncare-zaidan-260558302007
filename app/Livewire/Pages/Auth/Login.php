@@ -2,6 +2,8 @@
 
 namespace App\Livewire\Pages\Auth;
 
+use App\Enums\UserRole;
+use App\Models\SiteSetting;
 use App\Services\ActivityLogService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -11,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
-#[Layout('layouts.public', ['hidePublicNav' => true, 'bodyClass' => 'login-body'])]
+#[Layout('layouts.public', ['hidePublicNav' => true, 'hideAnnouncements' => true, 'bodyClass' => 'login-body'])]
 class Login extends Component
 {
     public string $userCode = '';
@@ -26,6 +28,9 @@ class Login extends Component
             'userCode' => ['required', 'string', 'max:50'],
             'password' => ['required', 'string'],
             'remember' => ['boolean'],
+        ], [
+            'userCode.required' => 'ID pengguna wajib diisi.',
+            'password.required' => 'Password wajib diisi.',
         ]);
         $key = Str::transliterate(Str::lower($data['userCode']).'|'.request()->ip());
 
@@ -35,29 +40,43 @@ class Login extends Component
             ]);
         }
 
-        $credentials = [
+        if (! Auth::attempt([
             'user_code' => $data['userCode'],
             'password' => $data['password'],
             'is_active' => true,
-        ];
-
-        if (! Auth::attempt($credentials, $data['remember'])) {
+        ], $data['remember'] ?? false)) {
             RateLimiter::hit($key, 60);
-            throw ValidationException::withMessages(['userCode' => 'ID pengguna atau password tidak sesuai.']);
+
+            throw ValidationException::withMessages([
+                'userCode' => 'ID pengguna atau password tidak sesuai.',
+            ]);
         }
 
         RateLimiter::clear($key);
-        request()->session()->regenerate();
-        request()->session()->put('auth_version', auth()->user()->auth_version);
-        $activityLogs->record(auth()->user(), 'login');
+        $user = Auth::user();
 
-        if (auth()->user()->must_change_password) {
-            $this->redirectRoute('password.change', navigate: false);
+        if (SiteSetting::maintenanceEnabled() && $user->role === UserRole::MAHASISWA) {
+            Auth::logout();
+            session()->invalidate();
+            session()->regenerateToken();
+            session()->flash('error', 'Login sementara tidak tersedia karena website sedang maintenance. Silakan coba lagi nanti.');
+            $this->redirectRoute('login');
 
             return;
         }
 
-        $this->redirectIntended(route('dashboard'), navigate: false);
+        session()->regenerate();
+        session()->put('auth_version', $user->auth_version);
+        $activityLogs->record($user, 'login');
+
+        $dashboardRoute = match ($user->role) {
+            UserRole::MAHASISWA => 'dashboard.mahasiswa',
+            UserRole::ADMIN_SARPRAS => 'dashboard.admin-sarpras',
+            UserRole::ADMIN_KEMAHASISWAAN => 'dashboard.admin-kemahasiswaan',
+            UserRole::SUPER_ADMIN => 'dashboard.super-admin',
+        };
+
+        $this->redirectRoute($user->must_change_password ? 'password.change' : $dashboardRoute);
     }
 
     public function render(): View

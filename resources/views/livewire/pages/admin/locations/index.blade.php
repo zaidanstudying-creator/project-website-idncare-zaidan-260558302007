@@ -1,3 +1,4 @@
+<div class="space-y-6">
     <section class="rounded-[28px] bg-white p-5 shadow-sm shadow-blue-950/5 sm:p-7">
         <div>
             <h2 class="text-xl font-bold">Tambah lokasi</h2>
@@ -42,7 +43,7 @@
                                 <span @class([
                                     'inline-flex rounded-full px-3 py-1 text-xs font-semibold',
                                     'bg-emerald-100 text-emerald-800' => $location->is_active,
-                                    'bg-slate-100 text-slate-600' => ! $location->is_active,
+                                    'bg-slate-100 text-slate-600 resource-status-inactive' => ! $location->is_active,
                                 ])>{{ $location->is_active ? 'Aktif' : 'Nonaktif' }}</span>
                             </td>
                             <td class="px-5 py-4 sm:px-7">
@@ -73,3 +74,4 @@
             <div class="border-t border-blue-50 px-5 py-4 sm:px-7">{{ $locations->links() }}</div>
         @endif
     </section>
+</div>

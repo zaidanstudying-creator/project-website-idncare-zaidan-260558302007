@@ -48,7 +48,7 @@ class ReportStatusService
 
                 if ($isFacility && $nextStatus === Report::STATUS_SELESAI && ! $hasAfterPhoto && ! $photo instanceof UploadedFile) {
                     throw ValidationException::withMessages([
-                        'after_photo' => 'Unggah minimal satu foto sesudah sebelum laporan fasilitas diselesaikan.',
+                        'afterPhoto' => 'Unggah minimal satu foto sesudah sebelum laporan fasilitas diselesaikan.',
                     ]);
                 }
 

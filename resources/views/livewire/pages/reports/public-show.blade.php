@@ -1,3 +1,4 @@
+<section aria-label="Detail laporan umum" class="grid gap-4">
     <a href="{{ route('monitor.index') }}" class="w-fit text-sm font-bold text-[#0B5FFF] hover:underline">← Kembali ke laporan umum</a>
 
     <article class="overflow-hidden rounded-[30px] border border-blue-100 bg-white shadow-sm">
@@ -6,8 +7,9 @@
         @if ($report->attachments->isNotEmpty())
             <div class="grid gap-3 border-t border-blue-50 bg-[#F3F7FF] p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
                 @foreach ($report->attachments as $attachment)
-                    <img src="{{ route('attachments.show', $attachment) }}" alt="Gambar laporan: {{ $report->title }}" loading="lazy" class="aspect-[4/3] w-full rounded-2xl bg-white object-cover">
+                    <a href="{{ route('attachments.show', $attachment) }}" target="_blank" rel="noopener" class="grid aspect-[4/3] place-items-center rounded-2xl bg-white p-4 text-center text-sm font-bold text-[#0B5FFF]">Lihat lampiran {{ $loop->iteration }}</a>
                 @endforeach
             </div>
         @endif
     </article>
+</section>

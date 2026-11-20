@@ -57,7 +57,7 @@
                                 <span @class([
                                     'inline-flex rounded-full px-3 py-1 text-xs font-semibold',
                                     'bg-emerald-100 text-emerald-800' => $category->is_active,
-                                    'bg-slate-100 text-slate-600' => ! $category->is_active,
+                                    'bg-slate-100 text-slate-600 resource-status-inactive' => ! $category->is_active,
                                 ])>{{ $category->is_active ? 'Aktif' : 'Nonaktif' }}</span>
                             </td>
                             <td class="px-5 py-4 sm:px-7">

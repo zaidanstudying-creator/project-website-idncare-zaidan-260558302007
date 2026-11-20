@@ -1,17 +1,17 @@
-<div class="contents">
+<div class="contents edit-student-page">
     <section class="rounded-xl bg-[#1557a6] p-6 text-white sm:p-8">
         <p class="text-sm font-semibold text-blue-100">Administrasi akun</p>
         <h1 class="mt-2 text-3xl font-extrabold">Edit informasi mahasiswa</h1>
         <p class="mt-2 text-sm text-blue-100">Perbarui data mahasiswa {{ $student->name }}. ID login, peran, status, dan password tidak berubah di sini.</p>
     </section>
 
-    <section class="mx-auto mt-6 max-w-3xl rounded-[28px] bg-white p-5 shadow-sm sm:p-8">
-        <div class="grid gap-1 rounded-2xl bg-blue-50 p-4 text-sm sm:grid-cols-[140px_1fr] sm:gap-3">
+    <section class="mt-6 w-full rounded-[28px] bg-white p-5 shadow-sm sm:p-8 lg:p-10">
+        <div class="grid gap-1 rounded-2xl bg-blue-50 p-4 text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-5 sm:p-5">
             <span class="text-slate-600">ID pengguna</span><strong>{{ $student->user_code }}</strong>
             <span class="text-slate-600">Peran</span><strong>Mahasiswa</strong>
         </div>
 
-        <form wire:submit="saveStudent" class="mt-6 grid gap-5">
+        <form wire:submit="saveStudent" class="mt-6 grid gap-5 md:grid-cols-2 md:gap-x-8 md:gap-y-7">
 
             <div>
                 <label for="name" class="mb-1 block text-sm font-semibold">Nama lengkap</label>
@@ -41,9 +41,12 @@
                 @error('angkatan')<small id="angkatan-error" class="field-error">{{ $message }}</small>@enderror
             </div>
 
-            <div class="flex flex-wrap justify-end gap-3 border-t border-blue-50 pt-5">
+            <div class="flex flex-wrap justify-end gap-3 border-t border-blue-50 pt-5 md:col-span-2">
                 <a href="{{ route('admin.users.index') }}" class="rounded-full border border-blue-200 px-5 py-3 font-semibold text-[#0B5FFF]">Batal</a>
-                <button type="submit" class="rounded-full bg-[#1557a6] px-6 py-3 font-bold text-white">Simpan perubahan</button>
+                <button type="submit" class="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-3 font-bold text-white transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="size-4"><path stroke-linecap="round" stroke-linejoin="round" d="M5 4h12l3 3v13H4V4h1Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 4v6h8V4M8 20v-6h8v6"/></svg>
+                    Simpan perubahan
+                </button>
             </div>
         </form>
     </section>

@@ -9,6 +9,7 @@ use App\Models\Report;
 use App\Models\ReportAttachment;
 use App\Models\ReportStatusHistory;
 use App\Models\ReportType;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -45,17 +46,15 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
     $category = createCategoryFor($type);
     $location = Location::query()->create(['name' => 'Gedung Utama', 'is_active' => true]);
 
-    $response = $this->actingAs($student)->post(route('reports.store', $type->code), [
-        'title' => 'Lampu lorong mati',
-        'description' => 'Lampu dekat ruang kelas tidak menyala sejak pagi.',
-        'category_id' => $category->id,
-        'location_id' => $location->id,
-        'photos' => [UploadedFile::fake()->image('lampu.jpg')],
-        'requested_visibility' => 'umum',
-        'is_anonymous' => '1',
-    ]);
-
-    $response->assertRedirect(route('reports.index'));
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => $type->code])
+        ->set('title', 'Lampu lorong mati')
+        ->set('description', 'Lampu dekat ruang kelas tidak menyala sejak pagi.')
+        ->set('categoryId', (string) $category->id)
+        ->set('locationId', (string) $location->id)
+        ->set('photos', [UploadedFile::fake()->image('lampu.jpg')])
+        ->set('requestedVisibility', 'umum')
+        ->set('isAnonymous', true)
+        ->call('submit')->assertHasNoErrors()->assertRedirect(route('reports.index'));
     $report = Report::query()->sole();
     $attachment = ReportAttachment::query()->sole();
     $history = ReportStatusHistory::query()->sole();
@@ -76,6 +75,22 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
 
     Storage::disk('local')->assertExists($attachment->file_path);
     Storage::disk('public')->assertMissing($attachment->file_path);
+
+    $admin = User::factory()->create([
+        'role' => UserRole::ADMIN_SARPRAS,
+        'must_change_password' => false,
+    ]);
+
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.reports.show', $report))
+        ->assertOk()
+        ->assertSee(route('attachments.show', $attachment), false)
+        ->assertSee('Lihat 1');
+
+    $this->get(route('attachments.show', $attachment))
+        ->assertOk()
+        ->assertSee('data:image/', false)
+        ->assertSee(route('admin.reports.show', $report), false);
 });
 
 it('stores aspirations without AI suggestions or requiring a location or photo', function (): void {
@@ -85,12 +100,12 @@ it('stores aspirations without AI suggestions or requiring a location or photo',
     $type = createReportType(ReportType::ASPIRASI);
     $category = createCategoryFor($type);
 
-    $this->actingAs($student)->post(route('reports.store', $type->code), [
-        'title' => 'Tambah ruang diskusi',
-        'description' => 'Usulan ruang diskusi untuk mahasiswa.',
-        'category_id' => $category->id,
-        'requested_visibility' => 'rahasia',
-    ])->assertRedirect(route('reports.index'));
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => $type->code])
+        ->set('title', 'Tambah ruang diskusi')
+        ->set('description', 'Usulan ruang diskusi untuk mahasiswa.')
+        ->set('categoryId', (string) $category->id)
+        ->set('requestedVisibility', 'rahasia')
+        ->call('submit')->assertHasNoErrors()->assertRedirect(route('reports.index'));
 
     $report = Report::query()->sole();
 
@@ -110,19 +125,17 @@ it('stores anonymous violations without reporter identity in related records', f
     $category = createCategoryFor($type);
     $location = Location::query()->create(['name' => 'Perpustakaan', 'is_active' => true]);
 
-    $response = $this->actingAs($student)->post(route('reports.store', $type->code), [
-        'title' => 'Dugaan kejadian',
-        'description' => 'Saya melihat kejadian pada area kampus.',
-        'category_id' => $category->id,
-        'location_id' => $location->id,
-        'incident_date' => now()->toDateString(),
-        'related_party' => 'Pihak terkait',
-        'photos' => [UploadedFile::fake()->image('bukti.png')],
-        'is_anonymous' => '1',
-    ]);
-
-    $response->assertRedirect(route('reports.index'))
-        ->assertSessionHas('status');
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => $type->code])
+        ->set('title', 'Dugaan kejadian')
+        ->set('description', 'Saya melihat kejadian pada area kampus.')
+        ->set('categoryId', (string) $category->id)
+        ->set('locationId', (string) $location->id)
+        ->set('incidentDate', now()->toDateString())
+        ->set('relatedParty', 'Pihak terkait')
+        ->set('photos', [UploadedFile::fake()->image('bukti.png')])
+        ->set('isAnonymous', true)
+        ->call('submit')->assertHasNoErrors()->assertRedirect(route('reports.index'));
+    expect(session('status'))->toBeString();
     $report = Report::query()->sole();
     $attachment = ReportAttachment::query()->sole();
     $history = ReportStatusHistory::query()->sole();
@@ -157,20 +170,15 @@ it('returns a validation message instead of a server error when anonymous report
     $category = createCategoryFor($type);
     $location = Location::query()->create(['name' => 'Perpustakaan', 'is_active' => true]);
 
-    $this->from(route('reports.create.form', $type->code))
-        ->actingAs($student)
-        ->post(route('reports.store', $type->code), [
-            'title' => 'Dugaan kejadian',
-            'description' => 'Deskripsi laporan untuk uji konfigurasi anonim.',
-            'category_id' => $category->id,
-            'location_id' => $location->id,
-            'incident_date' => now()->toDateString(),
-            'is_anonymous' => '1',
-        ])
-        ->assertRedirect(route('reports.create.form', $type->code))
-        ->assertSessionHasErrors([
-            'is_anonymous' => 'Pelaporan anonim sementara belum tersedia karena konfigurasi perlindungan belum siap. Hubungi administrator; laporan belum terkirim.',
-        ]);
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => $type->code])
+        ->set('title', 'Dugaan kejadian')
+        ->set('description', 'Deskripsi laporan untuk uji konfigurasi anonim.')
+        ->set('categoryId', (string) $category->id)
+        ->set('locationId', (string) $location->id)
+        ->set('incidentDate', now()->toDateString())
+        ->set('isAnonymous', true)
+        ->call('submit')
+        ->assertHasErrors(['isAnonymous' => 'Pelaporan anonim sementara belum tersedia karena konfigurasi perlindungan belum siap. Hubungi administrator; laporan belum terkirim.']);
 
     expect(Report::query()->count())->toBe(0)
         ->and(ActivityLog::query()->count())->toBe(0);
@@ -184,22 +192,22 @@ it('rejects an attempt to make a violation public and rejects invalid facility i
     $violationCategory = createCategoryFor($violation);
     $location = Location::query()->create(['name' => 'Gedung Utama', 'is_active' => true]);
 
-    $this->actingAs($student)->post(route('reports.store', $violation->code), [
-        'title' => 'Percobaan visibilitas',
-        'description' => 'Isi laporan.',
-        'category_id' => $violationCategory->id,
-        'location_id' => $location->id,
-        'incident_date' => now()->toDateString(),
-        'requested_visibility' => 'umum',
-    ])->assertSessionHasErrors('requested_visibility');
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => $violation->code])
+        ->set('title', 'Percobaan visibilitas')
+        ->set('description', 'Isi laporan.')
+        ->set('categoryId', (string) $violationCategory->id)
+        ->set('locationId', (string) $location->id)
+        ->set('incidentDate', now()->toDateString())
+        ->set('requestedVisibility', 'umum')
+        ->call('submit')->assertHasErrors('requestedVisibility');
 
-    $this->post(route('reports.store', $facility->code), [
-        'title' => 'Foto belum dilampirkan',
-        'description' => 'Isi laporan.',
-        'category_id' => $facilityCategory->id,
-        'location_id' => $location->id,
-        'requested_visibility' => 'rahasia',
-    ])->assertSessionHasErrors('photos');
+    Livewire::actingAs($student)->test(CreateForm::class, ['type' => $facility->code])
+        ->set('title', 'Foto belum dilampirkan')
+        ->set('description', 'Isi laporan.')
+        ->set('categoryId', (string) $facilityCategory->id)
+        ->set('locationId', (string) $location->id)
+        ->set('requestedVisibility', 'rahasia')
+        ->call('submit')->assertHasErrors('photos');
 
     expect(Report::query()->count())->toBe(0);
 });
@@ -282,18 +290,24 @@ it('authorizes private attachment access through the report policy', function ()
         'description' => 'Deskripsi.',
         'assigned_unit' => ReportType::UNIT_SARPRAS,
     ]);
-    Storage::disk('local')->put('reports/private.png', 'private photo');
+    $privatePhotoPath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('private.png'),
+        'private-photo',
+    );
     $attachment = ReportAttachment::query()->create([
         'report_id' => $report->id,
-        'file_path' => 'reports/private.png',
+        'file_path' => $privatePhotoPath,
         'kind' => 'before',
         'uploaded_by' => $student->id,
     ]);
 
     $this->actingAs($student)->get(route('attachments.show', $attachment))
         ->assertOk()
-        ->assertHeader('Cache-Control', 'no-store, private')
-        ->assertDontSee((string) $student->id);
+        ->assertHeaderContains('Cache-Control', 'no-store')
+        ->assertSee('data:image/png;base64,')
+        ->assertSee(route('reports.show', $report), false)
+        ->assertDontSee($student->user_code);
 
     $this->actingAs($otherStudent)->get(route('attachments.show', $attachment))->assertForbidden();
 
@@ -306,7 +320,9 @@ it('authorizes private attachment access through the report policy', function ()
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($sarpras)->get(route('attachments.show', $attachment))->assertOk();
+    $this->actingAs($sarpras)->get(route('attachments.show', $attachment))
+        ->assertOk()
+        ->assertSee(route('admin.reports.show', $report), false);
     $this->actingAs($kemah)->get(route('attachments.show', $attachment))->assertForbidden();
 
     $violation = createReportType(ReportType::PELANGGARAN);
@@ -326,10 +342,14 @@ it('authorizes private attachment access through the report policy', function ()
         'is_anonymous' => true,
         'assigned_unit' => ReportType::UNIT_KEMAHASISWAAN,
     ]);
-    Storage::disk('local')->put('reports/evidence.png', 'private evidence');
+    $evidencePath = Storage::disk('local')->putFileAs(
+        'reports',
+        UploadedFile::fake()->image('evidence.png'),
+        'evidence',
+    );
     $evidence = ReportAttachment::query()->create([
         'report_id' => $anonymousReport->id,
-        'file_path' => 'reports/evidence.png',
+        'file_path' => $evidencePath,
         'kind' => 'evidence',
         'uploaded_by' => null,
     ]);
@@ -352,6 +372,36 @@ it('limits report creation routes to students and requires completed first login
     $this->actingAs($student)->get(route('reports.create'))->assertOk();
     $this->actingAs($admin)->get(route('reports.create'))->assertForbidden();
     $this->actingAs($newStudent)->get(route('reports.create'))->assertRedirect(route('password.change'));
+});
+
+it('links to the report selector page from the student sidebar', function (): void {
+    createReportType(ReportType::FACILITAS);
+    $student = User::factory()->create(['must_change_password' => false]);
+
+    $this->actingAs($student)
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('href="'.route('reports.create').'" class="portal-nav-link"', false)
+        ->assertDontSee('aria-controls="create-report-dialog"', false);
+});
+
+it('sizes report type options to fill the available row when one type is disabled', function (): void {
+    createReportType(ReportType::FACILITAS);
+    createReportType(ReportType::ASPIRASI);
+    createReportType(ReportType::PELANGGARAN);
+    SiteSetting::query()->whereKey(1)->update(['aspiration_reports_enabled' => false]);
+
+    $student = User::factory()->create(['must_change_password' => false]);
+    $gridStyle = '--report-type-count: 2';
+
+    $this->actingAs($student)
+        ->get(route('dashboard.mahasiswa'))
+        ->assertOk()
+        ->assertSee('class="report-dialog-tabs" role="tablist" aria-label="Jenis laporan" style="'.$gridStyle.'"', false);
+
+    $this->get(route('reports.create'))
+        ->assertOk()
+        ->assertSee('aria-label="Jenis laporan" class="report-type-selector-tabs mt-6 grid gap-2 rounded-2xl bg-blue-50 p-2" style="'.$gridStyle.'"', false);
 });
 
 it('renders all three report forms with their applicable fields and privacy controls', function (): void {

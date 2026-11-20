@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 use LogicException;
 
 #[Fillable(['code', 'name'])]
@@ -22,6 +24,28 @@ class ReportType extends Model
 
     public $timestamps = false;
 
+    public static function ensureDefaults(): void
+    {
+        foreach ([
+            self::FACILITAS => 'Laporan Fasilitas',
+            self::ASPIRASI => 'Aspirasi',
+            self::PELANGGARAN => 'Laporan Dugaan Pelanggaran',
+        ] as $code => $name) {
+            static::query()->firstOrCreate(['code' => $code], ['name' => $name]);
+        }
+    }
+
+    /** @return Collection<int, self> */
+    public static function availableForSubmission(?SiteSetting $setting = null): Collection
+    {
+        $setting ??= SiteSetting::current();
+
+        return static::query()->whereIn('code', [self::FACILITAS, self::ASPIRASI, self::PELANGGARAN])
+            ->orderBy('id')->get()
+            ->filter(fn (self $type): bool => $setting?->reportTypeEnabled($type->code) ?? true)
+            ->values();
+    }
+
     public function categories(): HasMany
     {
         return $this->hasMany(Category::class);
@@ -38,6 +62,16 @@ class ReportType extends Model
             self::FACILITAS => self::UNIT_SARPRAS,
             self::ASPIRASI, self::PELANGGARAN => self::UNIT_KEMAHASISWAAN,
             default => throw new LogicException("Unknown report type [{$this->code}]."),
+        };
+    }
+
+    /** @return array<int, string> */
+    public static function codesHandledBy(UserRole $role): array
+    {
+        return match ($role) {
+            UserRole::ADMIN_SARPRAS => [self::FACILITAS],
+            UserRole::ADMIN_KEMAHASISWAAN => [self::ASPIRASI, self::PELANGGARAN],
+            default => [],
         };
     }
 }

@@ -18,10 +18,9 @@ class CreateSelector extends Component
     public function render(): View
     {
         abort_unless(auth()->user()?->role === UserRole::MAHASISWA, 403);
-        $types = ReportType::query()->orderBy('id')->get();
-        abort_if($types->isEmpty(), 404);
+        $types = ReportType::availableForSubmission();
         $selectedType = $types->firstWhere('code', $this->selectedTypeCode)
-            ?? $types->firstWhere('code', ReportType::FACILITAS);
+            ?? $types->first();
 
         return view('livewire.pages.reports.create', compact('types', 'selectedType'))
             ->title('Buat laporan');

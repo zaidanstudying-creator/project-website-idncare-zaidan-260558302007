@@ -84,3 +84,18 @@ it('renders role dashboard charts and does not render activity metadata', functi
     $this->get(route('admin.logs.index'))
         ->assertOk()->assertSee('Anonim / tidak ditautkan')->assertDontSee('must-not-render')->assertDontSee('reporter_token');
 });
+
+it('renders the status chart canvas for every admin dashboard', function (UserRole $role, string $route): void {
+    $admin = User::factory()->create(['role' => $role, 'must_change_password' => false]);
+
+    $this->actingAs($admin)
+        ->withSession(['auth_version' => $admin->auth_version])
+        ->get(route($route))
+        ->assertOk()
+        ->assertSee('id="status-doughnut-chart"', false)
+        ->assertDontSee("@include('livewire.pages.dashboard.partials.status-chart')", false);
+})->with([
+    [UserRole::ADMIN_SARPRAS, 'dashboard.admin-sarpras'],
+    [UserRole::ADMIN_KEMAHASISWAAN, 'dashboard.admin-kemahasiswaan'],
+    [UserRole::SUPER_ADMIN, 'dashboard.super-admin'],
+]);

@@ -42,7 +42,7 @@ class Index extends Component
 
         $this->reset('newName');
         $this->resetPage();
-        session()->flash('status', 'Lokasi berhasil ditambahkan.');
+        $this->dispatch('app-notification', message: 'Lokasi berhasil ditambahkan.', type: 'success');
     }
 
     public function updateLocation(int $locationId, ActivityLogService $logs): void
@@ -64,7 +64,7 @@ class Index extends Component
             ]);
         });
 
-        session()->flash('status', 'Lokasi berhasil diperbarui.');
+        $this->dispatch('app-notification', message: 'Lokasi berhasil diperbarui.', type: 'success');
     }
 
     public function deleteLocation(int $locationId, ActivityLogService $logs): void
@@ -83,15 +83,15 @@ class Index extends Component
             return true;
         });
 
-        session()->flash($deleted ? 'status' : 'error', $deleted
+        $this->dispatch('app-notification', message: $deleted
             ? 'Lokasi berhasil dihapus.'
-            : 'Lokasi yang sudah dipakai laporan tidak dapat dihapus; nonaktifkan lokasinya.');
+            : 'Lokasi yang sudah dipakai laporan tidak dapat dihapus; nonaktifkan lokasinya.', type: $deleted ? 'success' : 'error');
         $this->resetPage();
     }
 
     public function render(): View
     {
-        $locations = Location::query()->withCount('reports')->orderBy('name')->paginate(10);
+        $locations = Location::query()->withCount('reports')->orderBy('name')->paginate(10)->onEachSide(1);
         foreach ($locations as $location) {
             $this->locationEdits[$location->id] ??= [
                 'name' => $location->name,

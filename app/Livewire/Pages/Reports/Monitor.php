@@ -65,7 +65,7 @@ class Monitor extends Component
             ->when($filters['type'], fn (Builder $query, string $type) => $query->whereHas('reportType', fn (Builder $types) => $types->where('code', $type)))
             ->when($search !== '', fn (Builder $query) => $query->where(fn (Builder $query) => $query
                 ->where('ticket_no', 'like', '%'.$search.'%')->orWhere('title', 'like', '%'.$search.'%')))
-            ->orderByDesc('created_at')->orderByDesc('id')->paginate(12);
+            ->orderByDesc('created_at')->orderByDesc('id')->paginate(12)->onEachSide(1);
         $counts = [
             'total' => Report::query()->public()->count(),
             'fasilitas' => Report::query()->public()->whereHas('reportType', fn (Builder $query) => $query->where('code', ReportType::FACILITAS))->count(),

@@ -72,7 +72,7 @@ class Show extends Component
         ]);
 
         $this->reset(['status', 'note', 'afterPhoto']);
-        session()->flash('status', 'Perubahan laporan berhasil disimpan.');
+        $this->dispatch('app-notification', message: 'Perubahan laporan berhasil disimpan.', type: 'success');
     }
 
     public function decideVisibility(string $decision, ReportVisibilityService $service): void
@@ -83,9 +83,9 @@ class Show extends Component
             'decision' => ['required', 'string', Rule::in(['approve', 'reject'])],
         ])->validate();
         $service->decide($report, auth()->user(), $validated['decision']);
-        session()->flash('status', $decision === 'approve'
+        $this->dispatch('app-notification', message: $decision === 'approve'
             ? 'Permintaan visibilitas umum disetujui.'
-            : 'Permintaan visibilitas umum ditolak.');
+            : 'Permintaan visibilitas umum ditolak.', type: 'success');
     }
 
     public function render(): View

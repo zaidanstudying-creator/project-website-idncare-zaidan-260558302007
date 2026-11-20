@@ -41,9 +41,13 @@
 <div class="dashboard-chart-grid dashboard-chart-grid-primary">
     <section class="dashboard-panel dashboard-chart-panel dashboard-chart-wide"><div class="panel-heading"><div><h2>{{ $roleValue === 'admin_kemahasiswaan' ? 'Laporan per bulan: aspirasi dan pelanggaran' : ($roleValue === 'admin_sarpras' ? 'Laporan per bulan: fasilitas' : 'Laporan per bulan menurut jenis') }}</h2><p class="muted">Tren enam bulan terakhir</p></div></div><div class="chart-wrap"><canvas id="monthly-type-chart" role="img" aria-label="Grafik garis tren laporan per bulan berdasarkan jenis"></canvas></div><p class="sr-only">Ringkasan tren: @foreach($analytics['monthlyByType']['datasets'] as $dataset){{ $dataset['label'] }} {{ implode(', ', $dataset['data']) }}. @endforeach</p></section>
     @if($roleValue !== 'admin_kemahasiswaan')
-    <section class="dashboard-panel dashboard-chart-panel"><div class="panel-heading"><div><h2>{{ $roleValue === 'super_admin' ? 'Komposisi jenis laporan' : 'Distribusi status' }}</h2><p class="muted">Proporsi laporan dalam cakupan dashboard</p></div></div>@if($roleValue === 'super_admin')<div class="type-composition-layout"><div class="chart-wrap chart-wrap-doughnut"><canvas id="type-doughnut-chart" role="img" aria-label="Grafik donat komposisi jenis laporan"></canvas></div><ul class="type-composition-legend" aria-label="Legenda jenis laporan">@foreach($analytics['byType'] as $index => $row)<li><span class="type-composition-swatch type-composition-swatch-{{ $index }}" aria-hidden="true"></span>{{ $row['label'] }}</li>@endforeach</ul></div>@else@include('livewire.pages.dashboard.partials.status-chart')@endif</section>
+    <section class="dashboard-panel dashboard-chart-panel"><div class="panel-heading"><div><h2>{{ $roleValue === 'super_admin' ? 'Komposisi jenis laporan' : 'Distribusi status' }}</h2><p class="muted">Proporsi laporan dalam cakupan dashboard</p></div></div>@if($roleValue === 'super_admin')<div class="type-composition-layout"><div class="chart-wrap chart-wrap-doughnut"><canvas id="type-doughnut-chart" role="img" aria-label="Grafik donat komposisi jenis laporan"></canvas></div><ul class="type-composition-legend" aria-label="Legenda jenis laporan">@foreach($analytics['byType'] as $index => $row)<li><span class="type-composition-swatch type-composition-swatch-{{ $index }}" aria-hidden="true"></span><span class="type-composition-label">{{ $row['label'] }}</span></li>@endforeach</ul></div>@else
+    @include('livewire.pages.dashboard.partials.status-chart')
+@endif</section>
     @else
-    <section class="dashboard-panel dashboard-chart-panel"><div class="panel-heading"><div><h2>Distribusi status</h2><p class="muted">Tahap penanganan semua laporan</p></div></div>@include('livewire.pages.dashboard.partials.status-chart')</section>
+    <section class="dashboard-panel dashboard-chart-panel"><div class="panel-heading"><div><h2>Distribusi status</h2><p class="muted">Tahap penanganan semua laporan</p></div></div>
+    @include('livewire.pages.dashboard.partials.status-chart')
+</section>
     @endif
 </div>
 
@@ -82,7 +86,9 @@
 <div class="dashboard-chart-grid dashboard-chart-grid-three">
     <section class="dashboard-panel dashboard-chart-panel"><h2>Perbandingan unit</h2><p class="muted">Total laporan yang ditangani setiap unit</p><div class="unit-comparison-layout"><div class="chart-wrap"><canvas id="unit-chart" role="img" aria-label="Grafik perbandingan total laporan unit Sarpras dan Kemahasiswaan"></canvas></div></div></section>
     <section class="dashboard-panel dashboard-chart-panel"><h2>Waktu respons per unit</h2><p class="muted">Rata-rata hingga respons pertama diterima</p><div class="dashboard-metric-bars">@foreach([['Sarpras',$responseDaysByUnit['sarpras']],['Kemahasiswaan',$responseDaysByUnit['kemahasiswaan']]] as [$label,$value])<div class="dashboard-metric-row"><div><span>{{ $label }}</span><strong>{{ $value ?? '—' }} hari</strong></div><progress class="dashboard-progress" aria-label="{{ $label }}: {{ $value ?? 'belum ada data' }} hari" value="{{ $value ?? 0 }}" max="{{ max(1,$responseDaysByUnit['sarpras'] ?? 0,$responseDaysByUnit['kemahasiswaan'] ?? 0) }}"></progress></div>@endforeach</div></section>
-    <section class="dashboard-panel dashboard-chart-panel"><h2>Status laporan</h2><p class="muted">Jumlah pada setiap tahap penanganan</p>@include('livewire.pages.dashboard.partials.status-chart')</section>
+    <section class="dashboard-panel dashboard-chart-panel"><h2>Status laporan</h2><p class="muted">Jumlah pada setiap tahap penanganan</p>
+    @include('livewire.pages.dashboard.partials.status-chart')
+</section>
 </div>
 <div class="dashboard-chart-grid dashboard-chart-grid-three">
     @php($roleMax = max(1, collect($analytics['usersByRole'])->max('value') ?? 0))

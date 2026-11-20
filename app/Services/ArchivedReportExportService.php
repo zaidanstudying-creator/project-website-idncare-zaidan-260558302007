@@ -19,10 +19,9 @@ class ArchivedReportExportService
         return match ($format) {
             'csv' => $this->csv($filename.'.csv'),
             'xlsx' => $this->excel($filename.'.xlsx'),
-            'pdf' => response($this->pdf(), 200, [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'attachment; filename="'.$filename.'.pdf"',
-            ]),
+            'pdf' => response()->streamDownload(function (): void {
+                echo $this->pdf();
+            }, $filename.'.pdf', ['Content-Type' => 'application/pdf']),
         };
     }
 

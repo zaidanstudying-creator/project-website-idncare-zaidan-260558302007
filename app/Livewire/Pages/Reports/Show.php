@@ -32,7 +32,7 @@ class Show extends Component
         $report = $this->report();
         Gate::authorize('confirm', $report);
         $lifecycle->confirm($report, auth()->user());
-        session()->flash('status', 'Hasil laporan berhasil dikonfirmasi.');
+        $this->dispatch('app-notification', message: 'Hasil laporan berhasil dikonfirmasi.', type: 'success');
     }
 
     public function reopen(ReportLifecycleService $lifecycle): void
@@ -47,7 +47,7 @@ class Show extends Component
         ]);
         $lifecycle->reopen($report, auth()->user(), $data['reopenReason']);
         $this->reset('reopenReason');
-        session()->flash('status', 'Laporan dibuka kembali dan diteruskan untuk diproses.');
+        $this->dispatch('app-notification', message: 'Laporan dibuka kembali dan diteruskan untuk diproses.', type: 'success');
     }
 
     public function render(): View

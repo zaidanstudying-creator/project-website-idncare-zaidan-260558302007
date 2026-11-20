@@ -71,9 +71,9 @@ class EditStudent extends Component
             return true;
         });
 
-        session()->flash('status', $changed
+        $this->dispatch('app-notification', message: $changed
             ? 'Informasi akun mahasiswa berhasil diperbarui.'
-            : 'Tidak ada perubahan pada informasi akun.');
+            : 'Tidak ada perubahan pada informasi akun.', type: 'success');
         $this->redirectRoute('admin.users.index', navigate: false);
     }
 

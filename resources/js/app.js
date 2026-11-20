@@ -3,16 +3,435 @@ import Chart from 'chart.js/auto';
 document.documentElement.classList.remove('no-js');
 document.documentElement.classList.add('js');
 
+const themePreferenceKey = 'idn-care-theme-settings';
+const allowedThemeModes = ['device', 'light', 'dark', 'scheduled'];
+const isDarkTheme = () => document.documentElement.dataset.theme === 'dark';
+const normalizeThemeTime = (time, fallback) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time || '') ? time : fallback;
+const readThemePreference = () => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(themePreferenceKey) || 'null');
+        if (saved && allowedThemeModes.includes(saved.mode)) {
+            return {
+                mode: saved.mode,
+                darkStart: normalizeThemeTime(saved.darkStart, '18:00'),
+                lightStart: normalizeThemeTime(saved.lightStart, '06:00'),
+            };
+        }
+        const legacy = localStorage.getItem('idn-care-theme');
+        if (legacy === 'dark' || legacy === 'light') {
+            return { mode: legacy, darkStart: '18:00', lightStart: '06:00' };
+        }
+    } catch {}
+
+    return { mode: 'device', darkStart: '18:00', lightStart: '06:00' };
+};
+let themePreference = readThemePreference();
+const currentMinutes = () => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+};
+const timeToMinutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+const resolveDarkTheme = (preference) => {
+    if (preference.mode === 'dark') return true;
+    if (preference.mode === 'light') return false;
+    if (preference.mode === 'device') return window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    const start = timeToMinutes(preference.darkStart);
+    const end = timeToMinutes(preference.lightStart);
+    const current = currentMinutes();
+    return start === end || (start < end ? current >= start && current < end : current >= start || current < end);
+};
+const syncThemeControls = () => {
+    const dark = isDarkTheme();
+    document.querySelectorAll('.theme-switch').forEach((toggle) => toggle.setAttribute('data-theme', dark ? 'dark' : 'light'));
+    document.querySelectorAll('[data-theme-choice]').forEach((choice) => {
+        choice.setAttribute('aria-pressed', String(choice.dataset.themeChoice === (dark ? 'dark' : 'light')));
+    });
+    const schedulePanel = document.querySelector('[data-theme-schedule]');
+    if (schedulePanel) schedulePanel.hidden = themePreference.mode !== 'scheduled';
+    document.querySelectorAll('[data-theme-mode]').forEach((control) => {
+        control.checked = control.value === themePreference.mode;
+    });
+    document.querySelectorAll('[data-theme-dark-start]').forEach((control) => {
+        control.value = themePreference.darkStart;
+        control.disabled = themePreference.mode !== 'scheduled';
+    });
+    document.querySelectorAll('[data-theme-light-start]').forEach((control) => {
+        control.value = themePreference.lightStart;
+        control.disabled = themePreference.mode !== 'scheduled';
+    });
+};
+const applyThemePreference = ({ persist = false } = {}) => {
+    const dark = resolveDarkTheme(themePreference);
+    const previous = isDarkTheme();
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#101a2a' : '#f4f6f9');
+    if (persist) {
+        try {
+            localStorage.setItem(themePreferenceKey, JSON.stringify(themePreference));
+            localStorage.setItem('idn-care-theme', dark ? 'dark' : 'light');
+        } catch {}
+    }
+    syncThemeControls();
+    if (previous !== dark) {
+        window.dispatchEvent(new CustomEvent('app-theme-changed', { detail: { theme: dark ? 'dark' : 'light' } }));
+    }
+};
+applyThemePreference();
+
+const globalLoadingIndicator = document.querySelector('#global-loading-indicator');
+let pendingLoadingSources = 0;
+let loadingDelayTimer = null;
+const showGlobalLoading = () => {
+    if (!(globalLoadingIndicator instanceof HTMLElement)) return;
+
+    globalLoadingIndicator.hidden = false;
+    globalLoadingIndicator.setAttribute('aria-busy', 'true');
+};
+const hideGlobalLoading = () => {
+    if (!(globalLoadingIndicator instanceof HTMLElement)) return;
+
+    globalLoadingIndicator.hidden = true;
+    globalLoadingIndicator.setAttribute('aria-busy', 'false');
+};
+const beginLoading = () => {
+    pendingLoadingSources++;
+    if (pendingLoadingSources === 1) {
+        loadingDelayTimer = window.setTimeout(showGlobalLoading, 200);
+    }
+};
+const finishLoading = () => {
+    pendingLoadingSources = Math.max(0, pendingLoadingSources - 1);
+    if (pendingLoadingSources !== 0) return;
+
+    if (loadingDelayTimer !== null) {
+        window.clearTimeout(loadingDelayTimer);
+        loadingDelayTimer = null;
+    }
+    hideGlobalLoading();
+};
+
+document.addEventListener('livewire:init', () => {
+    window.Livewire.interceptRequest(({ onSend, onFinish }) => {
+        let requestIsPending = false;
+        onSend(() => {
+            requestIsPending = true;
+            beginLoading();
+        });
+        onFinish(() => {
+            if (!requestIsPending) return;
+            requestIsPending = false;
+            finishLoading();
+        });
+    });
+});
+
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+    const link = event.target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement) || link.target !== '' && link.target !== '_self' || link.hasAttribute('download')) return;
+
+    const destination = new URL(link.href, window.location.href);
+    if (destination.origin !== window.location.origin) return;
+    if (destination.pathname === window.location.pathname && destination.search === window.location.search && destination.hash !== '') return;
+
+    beginLoading();
+});
+
+window.addEventListener('pageshow', () => {
+    pendingLoadingSources = 0;
+    if (loadingDelayTimer !== null) {
+        window.clearTimeout(loadingDelayTimer);
+        loadingDelayTimer = null;
+    }
+    hideGlobalLoading();
+});
+
+const announcementMarquees = [...document.querySelectorAll('[data-announcement-marquee]')];
+const syncAnnouncementMarquees = () => {
+    announcementMarquees.forEach((announcement) => {
+        if (announcement.hidden) return;
+
+        const viewport = announcement.querySelector('.announcement-ticker-window');
+        const text = announcement.querySelector('.announcement-ticker-track > span:not([aria-hidden="true"])');
+        if (!(viewport instanceof HTMLElement) || !(text instanceof HTMLElement)) {
+            announcement.dataset.announcementReady = 'true';
+            return;
+        }
+
+        const track = text.parentElement;
+        const copy = track.querySelector('[aria-hidden="true"]');
+        const original = announcement.dataset.originalAnnouncement ?? text.textContent.trim();
+        announcement.dataset.originalAnnouncement = original;
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        text.textContent = reducedMotion ? original : `${original}  •  `;
+        if (!reducedMotion && text.getBoundingClientRect().width > 0) {
+            const repetitions = Math.max(1, Math.ceil(viewport.clientWidth / text.getBoundingClientRect().width));
+            text.textContent = `${original}  •  `.repeat(repetitions);
+        }
+        if (copy) copy.textContent = text.textContent;
+        announcement.dataset.scrolling = String(!reducedMotion);
+        announcement.dataset.announcementReady = 'true';
+    });
+};
+
+syncAnnouncementMarquees();
+document.fonts?.ready.then(syncAnnouncementMarquees);
+
+let announcementResizeFrame = null;
+window.addEventListener('resize', () => {
+    if (announcementResizeFrame !== null) return;
+
+    announcementResizeFrame = window.requestAnimationFrame(() => {
+        announcementResizeFrame = null;
+        syncAnnouncementMarquees();
+    });
+}, { passive: true });
+
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+
+    const closeButton = event.target.closest('[data-announcement-dismiss]');
+    const announcement = closeButton?.closest('[data-announcement-marquee]');
+    if (!(closeButton instanceof HTMLButtonElement) || !(announcement instanceof HTMLElement)) return;
+
+    announcement.hidden = true;
+});
+
+document.querySelectorAll('[data-theme-choice]').forEach((choice) => choice.addEventListener('click', () => {
+    themePreference = { ...themePreference, mode: choice.dataset.themeChoice };
+    applyThemePreference({ persist: true });
+}));
+document.querySelectorAll('[data-theme-mode]').forEach((control) => control.addEventListener('change', () => {
+    if (!control.checked) return;
+    themePreference = { ...themePreference, mode: control.value };
+    applyThemePreference({ persist: true });
+    const status = document.querySelector('[data-theme-save-status]');
+    if (status) status.textContent = 'Preferensi tema tersimpan di perangkat ini.';
+}));
+const saveThemeSchedule = () => {
+    const darkStart = document.querySelector('[data-theme-dark-start]');
+    const lightStart = document.querySelector('[data-theme-light-start]');
+    themePreference = {
+        ...themePreference,
+        mode: 'scheduled',
+        darkStart: normalizeThemeTime(darkStart?.value, '18:00'),
+        lightStart: normalizeThemeTime(lightStart?.value, '06:00'),
+    };
+    applyThemePreference({ persist: true });
+    const status = document.querySelector('[data-theme-save-status]');
+    if (status) status.textContent = `Tema gelap aktif pukul ${themePreference.darkStart}–${themePreference.lightStart} sesuai jam perangkat.`;
+};
+document.querySelectorAll('[data-theme-dark-start], [data-theme-light-start]').forEach((control) => control.addEventListener('change', saveThemeSchedule));
+
+const systemThemePreference = window.matchMedia('(prefers-color-scheme: dark)');
+systemThemePreference.addEventListener('change', () => {
+    if (themePreference.mode === 'device') applyThemePreference();
+});
+window.setInterval(() => {
+    if (themePreference.mode === 'scheduled') applyThemePreference();
+}, 60_000);
+
+document.querySelectorAll('.login-form').forEach((form) => form.addEventListener('submit', () => {
+    const submitButton = form.querySelector('.login-submit');
+    if (!(submitButton instanceof HTMLButtonElement)) return;
+    submitButton.classList.add('is-authenticating');
+    submitButton.setAttribute('aria-busy', 'true');
+}));
+
+const notificationToastContainer = document.getElementById('app-notification-toasts');
+let notificationSequence = 0;
+const showAppNotification = ({ message, type = 'success' } = {}) => {
+    if (!notificationToastContainer || typeof message !== 'string' || message.trim() === '') return;
+
+    const notificationType = type === 'error' ? 'error' : 'success';
+    const toast = document.createElement('div');
+    const content = document.createElement('p');
+    const closeButton = document.createElement('button');
+    const notificationId = `app-notification-${++notificationSequence}`;
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    toast.className = `app-notification-toast app-notification-toast-${notificationType}`;
+    toast.id = notificationId;
+    toast.setAttribute('role', notificationType === 'error' ? 'alert' : 'status');
+    content.className = 'app-notification-toast-message';
+    content.textContent = message;
+    closeButton.className = 'app-notification-toast-close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', 'Tutup notifikasi');
+    closeButton.textContent = '×';
+    let autoDismissTimeout;
+    const dismissToast = () => {
+        if (!toast.isConnected || toast.dataset.dismissing === 'true') return;
+
+        toast.dataset.dismissing = 'true';
+        window.clearTimeout(autoDismissTimeout);
+        toast.classList.add('is-dismissing');
+        if (typeof toast.hidePopover === 'function' && toast.matches(':popover-open')) {
+            toast.hidePopover();
+        } else {
+            toast.dataset.toastOpen = 'false';
+        }
+        window.setTimeout(() => {
+            toast.remove();
+            restackNotifications();
+        }, 240);
+    };
+    const pauseAutoDismiss = () => window.clearTimeout(autoDismissTimeout);
+    const resumeAutoDismiss = () => {
+        if (toast.dataset.dismissing !== 'true') {
+            autoDismissTimeout = window.setTimeout(dismissToast, 5000);
+        }
+    };
+    if (typeof toast.showPopover === 'function') {
+        toast.setAttribute('popover', 'manual');
+    } else {
+        toast.dataset.toastOpen = 'true';
+    }
+    closeButton.addEventListener('click', dismissToast);
+    toast.addEventListener('mouseenter', pauseAutoDismiss);
+    toast.addEventListener('mouseleave', resumeAutoDismiss);
+    toast.addEventListener('focusin', pauseAutoDismiss);
+    toast.addEventListener('focusout', () => {
+        window.setTimeout(() => {
+            if (!toast.contains(document.activeElement)) resumeAutoDismiss();
+        });
+    });
+    toast.append(content, closeButton);
+    notificationToastContainer.append(toast);
+    if (typeof toast.showPopover === 'function') {
+        toast.showPopover();
+    }
+    restackNotifications();
+    resumeAutoDismiss();
+    closeButton.addEventListener('click', () => {
+        window.setTimeout(() => {
+            const nextToast = [...notificationToastContainer.querySelectorAll('.app-notification-toast')]
+                .find((candidate) => candidate !== toast && (
+                    typeof candidate.showPopover === 'function'
+                        ? candidate.matches(':popover-open')
+                        : candidate.dataset.toastOpen === 'true'
+                ));
+
+            if (nextToast instanceof HTMLElement) {
+                nextToast.querySelector('button')?.focus();
+            } else if (returnFocus?.isConnected) {
+                returnFocus.focus();
+            }
+        }, 260);
+    }, { once: true });
+};
+
+function restackNotifications() {
+    if (!notificationToastContainer) return;
+
+    let offset = 0;
+    notificationToastContainer.querySelectorAll('.app-notification-toast').forEach((toast) => {
+        toast.style.setProperty('--toast-offset', `${offset}px`);
+        offset += toast.getBoundingClientRect().height + 12;
+    });
+}
+
+window.addEventListener('app-notification', (event) => showAppNotification(event.detail));
+window.addEventListener('notification-count-updated', (event) => {
+    const unreadCount = Number(event.detail?.count ?? 0);
+    document.querySelectorAll('.notification-count').forEach((badge) => {
+        badge.textContent = String(unreadCount);
+    });
+    document.querySelectorAll('.topbar-notification').forEach((link) => {
+        link.setAttribute('aria-label', `Notifikasi, ${unreadCount} belum dibaca`);
+    });
+});
+
+document.querySelectorAll('[data-flash-notification]').forEach((flash) => {
+    showAppNotification({ message: flash.textContent.trim(), type: flash.dataset.type });
+});
+
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const animateIfAllowed = (element, keyframes, options) => {
     if (reduceMotion.matches || typeof element?.animate !== 'function') return;
     element.animate(keyframes, { ...options, easing: options.easing || 'cubic-bezier(.2,.75,.25,1)' });
 };
 
+const motionTargetSelector = [
+    '.landing-hero',
+    '.landing-section',
+    '.landing-public-reports',
+    '.landing-process',
+    '.landing-faq',
+    '.portal-content > .page-heading',
+    '.portal-content > section',
+    '.portal-content > form',
+    '.portal-content > article',
+    '.portal-content > .empty-state',
+    '.portal-content > .table-scroll',
+    '.dashboard-columns > *',
+    '.dashboard-chart-grid > *',
+    '.dashboard-stat',
+    '.status-flow-card',
+    '.report-type-card',
+    '.report-card',
+    '.notification-list article',
+    '.table-scroll tbody > tr',
+    '.panel',
+    '[class*="-card"]',
+    '[class*="-panel"]',
+].join(',');
+
+let motionObserver = null;
+const prepareMotionTargets = (root = document) => {
+    if (reduceMotion.matches || !('IntersectionObserver' in window)) return;
+
+    if (!motionObserver) {
+        motionObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                entry.target.dataset.motionReveal = 'visible';
+                observer.unobserve(entry.target);
+            });
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    }
+
+    const targets = [];
+    if (root instanceof Element && root.matches(motionTargetSelector)) targets.push(root);
+    targets.push(...root.querySelectorAll(motionTargetSelector));
+
+    targets.forEach((element) => {
+        if (element.dataset.motionReveal) return;
+        const siblingIndex = [...(element.parentElement?.children ?? [])].indexOf(element);
+        const staggerIndex = Math.max(0, siblingIndex % 6);
+        element.style.setProperty('--motion-delay', `${staggerIndex * 45}ms`);
+        element.dataset.motionReveal = 'pending';
+        motionObserver.observe(element);
+    });
+};
+
+prepareMotionTargets();
+reduceMotion.addEventListener('change', (event) => {
+    if (event.matches) {
+        document.querySelectorAll('[data-motion-reveal="pending"]').forEach((element) => {
+            element.dataset.motionReveal = 'visible';
+            motionObserver?.unobserve(element);
+        });
+        return;
+    }
+
+    prepareMotionTargets();
+});
+
+const livewireMotionObserver = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+        if (node instanceof Element) prepareMotionTargets(node);
+    }));
+});
+livewireMotionObserver.observe(document.body, { childList: true, subtree: true });
+
 // Small press feedback makes controls feel responsive without changing layout.
 const pressedAnimations = new WeakMap();
 const pressedControls = new Set();
-const interactiveSelector = 'a[href], button:not(:disabled), [role="button"], [role="tab"], [role="menuitem"], input:not([type="hidden"]), select, textarea, summary, .dashboard-stat, .status-flow-card';
+const interactiveSelector = 'a[href], button:not(:disabled), [role="button"], [role="tab"], [role="menuitem"], summary, .dashboard-stat, .status-flow-card';
 document.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || reduceMotion.matches) return;
     const control = event.target.closest(interactiveSelector);
@@ -20,8 +439,8 @@ document.addEventListener('pointerdown', (event) => {
     pressedAnimations.get(control)?.cancel();
     pressedAnimations.set(control, animateIfAllowed(control, [
         { transform: 'scale(1)' },
-        { transform: 'scale(.985)' },
-    ], { duration: 90, fill: 'forwards' }));
+        { transform: 'scale(.94)' },
+    ], { duration: 110, fill: 'forwards' }));
     pressedControls.add(control);
 });
 const releaseControls = () => {
@@ -30,9 +449,9 @@ const releaseControls = () => {
         pressedAnimations.get(control)?.cancel();
         pressedAnimations.delete(control);
         animateIfAllowed(control, [
-            { transform: 'scale(.985)' },
+            { transform: 'scale(.94)' },
             { transform: 'scale(1)' },
-        ], { duration: 130 });
+        ], { duration: 180 });
     });
     pressedControls.clear();
 };
@@ -45,25 +464,11 @@ document.addEventListener('click', (event) => {
     if (control && !control.hasAttribute('aria-disabled')) {
         animateIfAllowed(control, [
             { transform: 'scale(1)' },
-            { transform: 'scale(.985)', offset: .45 },
+            { transform: 'scale(.94)', offset: .45 },
             { transform: 'scale(1)' },
-        ], { duration: 170 });
+        ], { duration: 220 });
     }
 });
-document.addEventListener('focusin', (event) => {
-    const control = event.target.closest?.('input:not([type="hidden"]), select, textarea');
-    if (!control) return;
-    animateIfAllowed(control, [
-        { boxShadow: '0 0 0 0 rgba(11,95,255,0)' },
-        { boxShadow: '0 0 0 3px rgba(11,95,255,.16)' },
-    ], { duration: 180, fill: 'forwards' });
-});
-document.addEventListener('focusout', (event) => {
-    const control = event.target.closest?.('input:not([type="hidden"]), select, textarea');
-    if (!control) return;
-    control.getAnimations().forEach((animation) => animation.cancel());
-});
-
 const sidebar = document.getElementById('app-sidebar');
 const menuToggle = document.querySelector('[data-menu-toggle]');
 const backdrop = document.querySelector('.portal-backdrop');
@@ -124,30 +529,45 @@ document.querySelectorAll('dialog[data-dialog-open-on-load]').forEach((dialog) =
         dialog.showModal();
     }
 });
-const userRoleSelect = document.getElementById('role');
-const studentFields = document.querySelector('[data-student-fields]');
-const studentProgramField = document.querySelector('[data-student-program-field]');
-const nonstudentUnitField = document.querySelector('[data-nonstudent-unit-field]');
-const studentProgramSelect = document.querySelector('[data-student-program-select]');
-const nonstudentUnitInput = document.querySelector('[data-nonstudent-unit-input]');
-if (userRoleSelect instanceof HTMLSelectElement && studentFields instanceof HTMLFieldSetElement
-    && studentProgramField instanceof HTMLDivElement && nonstudentUnitField instanceof HTMLDivElement
-    && studentProgramSelect instanceof HTMLSelectElement && nonstudentUnitInput instanceof HTMLInputElement) {
-    const studentRequiredFields = [...studentFields.querySelectorAll('[data-required-for-student]')];
-    const syncStudentFields = () => {
-        const isStudent = userRoleSelect.value === 'mahasiswa';
-        studentFields.hidden = !isStudent;
-        studentRequiredFields.forEach((field) => { field.required = isStudent; });
-        studentProgramField.hidden = !isStudent;
-        studentProgramSelect.disabled = !isStudent;
-        studentProgramSelect.required = isStudent;
-        nonstudentUnitField.hidden = isStudent;
-        nonstudentUnitInput.disabled = isStudent;
-    };
-    userRoleSelect.addEventListener('change', syncStudentFields);
-    syncStudentFields();
-}
-document.querySelectorAll('[data-dialog-close]').forEach((button) => button.addEventListener('click', () => button.closest('dialog')?.close()));
+const syncStudentFields = (userRoleSelect) => {
+    if (!(userRoleSelect instanceof HTMLSelectElement)) return;
+
+    const form = userRoleSelect.closest('form');
+    const studentFields = form?.querySelector('[data-student-fields]');
+    const studentProgramField = form?.querySelector('[data-student-program-field]');
+    const nonstudentUnitField = form?.querySelector('[data-nonstudent-unit-field]');
+    const studentProgramSelect = form?.querySelector('[data-student-program-select]');
+    const nonstudentUnitInput = form?.querySelector('[data-nonstudent-unit-input]');
+    if (!(studentFields instanceof HTMLFieldSetElement)
+        || !(studentProgramField instanceof HTMLDivElement)
+        || !(nonstudentUnitField instanceof HTMLDivElement)
+        || !(studentProgramSelect instanceof HTMLSelectElement)
+        || !(nonstudentUnitInput instanceof HTMLInputElement)) return;
+
+    const isStudent = userRoleSelect.value === 'mahasiswa';
+    studentFields.hidden = !isStudent;
+    studentFields.querySelectorAll('[data-required-for-student]').forEach((field) => {
+        if (field instanceof HTMLInputElement) field.required = isStudent;
+    });
+    studentProgramField.hidden = !isStudent;
+    studentProgramSelect.disabled = !isStudent;
+    studentProgramSelect.required = isStudent;
+    nonstudentUnitField.hidden = isStudent;
+    nonstudentUnitInput.disabled = isStudent;
+};
+
+document.querySelectorAll('[data-user-role-select]').forEach((select) => syncStudentFields(select));
+document.addEventListener('change', (event) => {
+    if (event.target instanceof HTMLSelectElement && event.target.matches('[data-user-role-select]')) {
+        syncStudentFields(event.target);
+    }
+});
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+
+    const closeButton = event.target.closest('[data-dialog-close]');
+    if (closeButton instanceof HTMLButtonElement) closeButton.closest('dialog')?.close();
+});
 document.querySelectorAll('[data-report-tab]').forEach((tab) => {
     tab.addEventListener('click', (event) => {
         event.preventDefault();
@@ -307,10 +727,30 @@ document.querySelectorAll('[data-file-preview]').forEach((input) => {
     let urls = [];
     input.addEventListener('change', () => {
         urls.forEach((url) => URL.revokeObjectURL(url)); urls = []; preview.replaceChildren();
-        [...(input.files ?? [])].filter((file) => file.type.startsWith('image/')).forEach((file) => {
+        const selectedFiles = [...(input.files ?? [])];
+        selectedFiles.filter((file) => file.type.startsWith('image/')).forEach((file) => {
+            const fileIndex = selectedFiles.indexOf(file);
             const url = URL.createObjectURL(file); urls.push(url);
+            const card = document.createElement('div');
+            card.className = 'report-photo-preview-card';
             const image = document.createElement('img'); image.src = url; image.alt = `Pratinjau ${file.name}`;
-            image.className = 'aspect-square w-full rounded-lg object-cover'; preview.append(image);
+            image.className = 'report-photo-preview-image';
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'report-photo-preview-remove';
+            removeButton.setAttribute('aria-label', `Hapus foto ${file.name}`);
+            removeButton.title = 'Hapus foto';
+            removeButton.textContent = '×';
+            removeButton.addEventListener('click', () => {
+                const transfer = new DataTransfer();
+                [...(input.files ?? [])].forEach((selectedFile, selectedIndex) => {
+                    if (selectedIndex !== fileIndex) transfer.items.add(selectedFile);
+                });
+                input.files = transfer.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            card.append(image, removeButton);
+            preview.append(card);
             animateIfAllowed(image, [
                 { opacity: 0, transform: 'scale(.96)' },
                 { opacity: 1, transform: 'scale(1)' },
@@ -319,103 +759,22 @@ document.querySelectorAll('[data-file-preview]').forEach((input) => {
     });
 });
 
-document.querySelectorAll('[data-ai-title-button]').forEach((button) => {
-    let latestRequest = 0;
-    let activeRequest = null;
-
-    button.addEventListener('click', async () => {
-        const form = button.closest('form');
-        const status = form.querySelector('[data-ai-title-status]');
-        const options = form.querySelector('[data-ai-title-options]');
-        const descriptionField = form.querySelector('#description');
-        const description = descriptionField.value;
-        const requestId = ++latestRequest;
-        activeRequest?.abort();
-        activeRequest = new AbortController();
-        const originalLabel = button.dataset.originalLabel || button.textContent;
-        button.dataset.originalLabel = originalLabel;
-
-        options.replaceChildren();
-        status.textContent = 'Meminta saran judul…';
-        button.disabled = true;
-        button.setAttribute('aria-busy', 'true');
-        button.textContent = 'Memuat saran…';
-
-        try {
-            const body = new URLSearchParams({
-                _token: form.querySelector('input[name="_token"]').value,
-                type: button.dataset.type,
-                description,
-            });
-
-            const response = await fetch(button.dataset.endpoint, {
-                method: 'POST',
-                headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-                body,
-                signal: activeRequest.signal,
-            });
-
-            const result = await response.json().catch(() => null);
-            if (requestId !== latestRequest) {
-                return;
-            }
-
-            if (descriptionField.value !== description) {
-                status.textContent = 'Uraian berubah. Minta kembali saran agar sesuai dengan uraian terbaru.';
-                return;
-            }
-
-            if (!response.ok) {
-                status.textContent = typeof result?.message === 'string'
-                    ? result.message
-                    : 'Saran AI belum tersedia. Kamu tetap bisa menulis judul dan mengirim laporan.';
-                return;
-            }
-
-            if (!Array.isArray(result?.titles) || result.titles.length !== 3
-                || result.titles.some((title) => typeof title !== 'string' || title.trim() === '' || title.length > 150)) {
-                throw new Error('Saran belum tersedia. Kamu tetap bisa menulis judul sendiri.');
-            }
-
-            result.titles.forEach((title) => {
-                const choice = document.createElement('button');
-                choice.type = 'button';
-                choice.className = 'rounded-full bg-blue-50 px-4 py-2 text-left text-xs font-semibold text-[#0B5FFF] hover:bg-blue-100';
-                choice.textContent = title;
-                choice.addEventListener('click', () => { form.querySelector('#title').value = title; });
-                options.append(choice);
-            });
-            status.textContent = 'Pilih saran untuk mengisi judul, lalu periksa sebelum mengirim.';
-        } catch (error) {
-            if (requestId !== latestRequest || error.name === 'AbortError') {
-                return;
-            }
-
-            status.textContent = 'Saran AI belum tersedia. Kamu tetap bisa menulis judul dan mengirim laporan.';
-        } finally {
-            if (requestId === latestRequest) {
-                button.disabled = false;
-                button.removeAttribute('aria-busy');
-                button.textContent = originalLabel;
-                activeRequest = null;
-            }
-        }
-    });
-});
-
 const chartDataElement = document.getElementById('dashboard-chart-data');
 
 if (chartDataElement) {
     const data = JSON.parse(chartDataElement.dataset.payload);
+    const dashboardCharts = [];
+    const chartTextColor = () => isDarkTheme() ? '#e5edf9' : '#52647e';
+    const chartGridColor = () => isDarkTheme() ? '#33445f' : '#edf2fb';
     const palette = ['#0B5FFF', '#1AA7E8', '#8BB7FF', '#0A1F44', '#4389F4', '#78A9FF'];
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: window.matchMedia('(max-width: 760px)').matches ? 'bottom' : 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 16, generateLabels: (chart) => Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => {
+        plugins: { legend: { position: 'bottom', align: 'start', labels: { usePointStyle: true, boxWidth: 8, padding: 10, font: { size: 11 }, generateLabels: (chart) => Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => {
             const color = chart.config.type === 'line' ? chart.data.datasets[item.datasetIndex]?.borderColor : item.fillStyle;
             return { ...item, fillStyle: color, lineWidth: 0, strokeStyle: color };
         }) } } },
-        scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#edf2fb' } }, x: { grid: { color: '#edf2fb' } } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: chartGridColor() } }, x: { grid: { color: chartGridColor() } } },
     };
     const hasValues = (values) => Array.isArray(values) && values.some((value) => Number(value) > 0);
     const appendDataTable = (canvas, labels, datasets) => {
@@ -474,8 +833,10 @@ if (chartDataElement) {
         }));
 
         const hasChartValues = series.some((dataset) => hasValues(dataset.data));
-        if (!hasChartValues && (labels.length === 0 || series.length === 0)) {
+        if (!hasChartValues) {
+            if (labels.length > 0 && series.length > 0) appendDataTable(canvas, labels, series);
             canvas.hidden = true;
+            canvas.closest('.type-composition-layout, .status-composition-layout, .unit-comparison-layout')?.classList.add('is-empty');
             const empty = document.createElement('p');
             empty.className = 'dashboard-chart-empty';
             empty.textContent = 'Belum ada data untuk ditampilkan.';
@@ -484,7 +845,7 @@ if (chartDataElement) {
         }
 
         appendDataTable(canvas, labels, series);
-        new Chart(canvas, {
+        const chart = new Chart(canvas, {
             type,
             data: { labels, datasets: series },
             options: {
@@ -502,17 +863,12 @@ if (chartDataElement) {
                 scales: type === 'doughnut' ? {} : { ...chartOptions.scales, ...options.scales },
             },
         });
-        if (!hasChartValues) {
-            const empty = document.createElement('p');
-            empty.className = 'dashboard-chart-empty-note';
-            empty.textContent = 'Belum ada data untuk ditampilkan.';
-            canvas.parentElement.after(empty);
-        }
+        dashboardCharts.push(chart);
     };
     const rowsToSeries = (rows) => [{ label: 'Laporan', data: rows.map((row) => row.count) }];
     const renderDoughnut = (id, chart, colors = [], showLegend = true) => render(id, 'doughnut', chart.labels, [{ label: 'Jumlah', data: chart.values, backgroundColor: colors, borderColor: colors, borderWidth: 0 }], {
         cutout: '66%',
-        plugins: { legend: { display: showLegend, position: window.matchMedia('(max-width: 760px)').matches ? 'bottom' : 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 12 } } },
+        plugins: { legend: { display: showLegend, position: 'bottom', align: 'start', labels: { usePointStyle: true, boxWidth: 8, padding: 10, font: { size: 11 } } } },
     });
 
     render('monthly-type-chart', 'line', data.monthlyByType.labels, data.monthlyByType.datasets);
@@ -532,9 +888,23 @@ if (chartDataElement) {
             backgroundColor: ['#0B5FFF', '#1AA7E8'][index % 2],
             borderColor: ['#0B5FFF', '#1AA7E8'][index % 2],
         })), {
-            plugins: { legend: { display: true, position: 'right' } },
+            plugins: { legend: { display: true, position: 'bottom', align: 'start', labels: { boxWidth: 8, padding: 10, font: { size: 11 } } } },
             scales: { x: { grid: { color: '#edf2fb' }, ticks: { autoSkip: false, minRotation: 0, maxRotation: 0, padding: 6 } } },
         });
     }
     if (data.monthlyLogins) render('login-chart', 'bar', data.monthlyLogins.labels, [{ label: 'Login', data: data.monthlyLogins.values, backgroundColor: '#8BB7FF' }]);
+
+    const updateChartTheme = () => {
+        dashboardCharts.forEach((chart) => {
+            chart.options.plugins.legend.labels.color = chartTextColor();
+            Object.values(chart.options.scales ?? {}).forEach((scale) => {
+                scale.ticks = { ...scale.ticks, color: chartTextColor() };
+                scale.grid = { ...scale.grid, color: chartGridColor() };
+                scale.title = { ...scale.title, color: chartTextColor() };
+            });
+            chart.update('none');
+        });
+    };
+    updateChartTheme();
+    window.addEventListener('app-theme-changed', updateChartTheme);
 }

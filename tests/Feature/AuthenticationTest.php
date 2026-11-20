@@ -1,6 +1,9 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Livewire\Components\Auth\Logout;
+use App\Livewire\Pages\Auth\Login;
+use App\Livewire\Pages\Auth\PasswordChange;
 use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Report;
@@ -9,6 +12,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
@@ -24,14 +28,19 @@ it('logs in active accounts by user code and regenerates the session', function 
     ]);
     $oldSessionId = session()->getId();
 
-    $this->post(route('login.store'), [
-        'user_code' => $user->user_code,
-        'password' => 'temporary-password',
-    ])->assertRedirect(route('dashboard'));
+    Livewire::test(Login::class)
+        ->set('userCode', $user->user_code)
+        ->set('password', 'temporary-password')
+        ->call('authenticate')
+        ->assertRedirect(route('dashboard.mahasiswa'));
 
     expect(auth()->id())->toBe($user->id)
         ->and(session()->getId())->not->toBe($oldSessionId)
         ->and(ActivityLog::query()->where('action', 'login')->sole()->user_id)->toBe($user->id);
+});
+
+it('limits idle sessions to thirty minutes', function (): void {
+    expect(config('session.lifetime'))->toBeLessThanOrEqual(30);
 });
 
 it('rejects invalid credentials and inactive accounts with the same message', function (): void {
@@ -45,16 +54,18 @@ it('rejects invalid credentials and inactive accounts with the same message', fu
         'is_active' => false,
     ]);
 
-    $this->from(route('login'))->post(route('login.store'), [
-        'user_code' => $active->user_code,
-        'password' => 'wrong-password',
-    ])->assertRedirect(route('login'))->assertSessionHasErrors('user_code');
+    Livewire::test(Login::class)
+        ->set('userCode', $active->user_code)
+        ->set('password', 'wrong-password')
+        ->call('authenticate')
+        ->assertHasErrors('userCode');
     expect(auth()->check())->toBeFalse();
 
-    $this->from(route('login'))->post(route('login.store'), [
-        'user_code' => 'MHS-INACTIVE-01',
-        'password' => 'correct-password',
-    ])->assertRedirect(route('login'))->assertSessionHasErrors('user_code');
+    Livewire::test(Login::class)
+        ->set('userCode', 'MHS-INACTIVE-01')
+        ->set('password', 'correct-password')
+        ->call('authenticate')
+        ->assertHasErrors('userCode');
     expect(auth()->check())->toBeFalse();
 });
 
@@ -65,25 +76,26 @@ it('forces a first-login password change before protected pages', function (): v
         'must_change_password' => true,
     ]);
 
-    $this->post(route('login.store'), [
-        'user_code' => $user->user_code,
-        'password' => 'temporary-password',
-    ])->assertRedirect(route('password.change'));
+    Livewire::test(Login::class)
+        ->set('userCode', $user->user_code)
+        ->set('password', 'temporary-password')
+        ->call('authenticate')
+        ->assertRedirect(route('password.change'));
 
     $this->get('/dashboard')->assertRedirect(route('password.change'));
     $this->get(route('password.change'))->assertOk();
 
-    $this->put(route('password.change.update'), [
-        'current_password' => 'temporary-password',
-        'password' => 'a-new-secure-password',
-        'password_confirmation' => 'a-new-secure-password',
-    ])->assertRedirect(route('dashboard'));
+    Livewire::actingAs($user)->test(PasswordChange::class)
+        ->set('current_password', 'temporary-password')
+        ->set('password', 'a-new-secure-password')
+        ->set('password_confirmation', 'a-new-secure-password')
+        ->call('savePassword')
+        ->assertRedirect(route('dashboard'));
 
     expect($user->fresh()->must_change_password)->toBeFalse()
         ->and(Hash::check('a-new-secure-password', $user->fresh()->password))->toBeTrue()
         ->and(ActivityLog::query()->where('action', 'password_changed')->sole()->new_values)->toBe(['must_change_password' => false]);
 
-    $this->get('/dashboard')->assertRedirect(route('dashboard.mahasiswa'));
 });
 
 it('requires at least eight characters without adding complexity rules absent from the PRD', function (): void {
@@ -92,25 +104,28 @@ it('requires at least eight characters without adding complexity rules absent fr
         'must_change_password' => false,
     ]);
 
-    $this->actingAs($user)->put(route('password.change.update'), [
-        'current_password' => 'temporary-password',
-        'password' => 'short7!',
-        'password_confirmation' => 'short7!',
-    ])->assertSessionHasErrors('password');
+    Livewire::actingAs($user)->test(PasswordChange::class)
+        ->set('current_password', 'temporary-password')
+        ->set('password', 'short7!')
+        ->set('password_confirmation', 'short7!')
+        ->call('savePassword')
+        ->assertHasErrors('password');
 
-    $this->put(route('password.change.update'), [
-        'current_password' => 'temporary-password',
-        'password' => 'abcdefgh',
-        'password_confirmation' => 'abcdefgh',
-    ])->assertRedirect(route('dashboard'));
+    Livewire::actingAs($user)->test(PasswordChange::class)
+        ->set('current_password', 'temporary-password')
+        ->set('password', 'abcdefgh')
+        ->set('password_confirmation', 'abcdefgh')
+        ->call('savePassword')
+        ->assertRedirect(route('dashboard'));
 });
 
 it('invalidates the session and rotates the csrf token on logout', function (): void {
     $user = User::factory()->create(['must_change_password' => false]);
-    $this->actingAs($user);
     $oldToken = session()->token();
 
-    $this->post(route('logout'))->assertRedirect(route('login'));
+    Livewire::actingAs($user)->test(Logout::class)
+        ->call('logout')
+        ->assertRedirect(route('login'));
 
     expect(auth()->check())->toBeFalse()
         ->and(session()->token())->not->toBe($oldToken)

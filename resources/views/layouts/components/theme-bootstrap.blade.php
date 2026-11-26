@@ -1,4 +1,4 @@
-<script>
+<script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
 document.documentElement.classList.remove('no-js');
 document.documentElement.classList.add('js');
 

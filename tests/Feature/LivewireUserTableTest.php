@@ -161,7 +161,7 @@ it('paginates account results in batches of twenty', function (): void {
         ->assertSee('USR-21');
 });
 
-it('permanently deletes an account that has no retained report history', function (): void {
+it('refuses permanent account deletion and keeps the account notification', function (): void {
     $admin = User::factory()->create([
         'role' => UserRole::SUPER_ADMIN,
         'must_change_password' => false,
@@ -178,19 +178,20 @@ it('permanently deletes an account that has no retained report history', functio
     ]);
 
     Livewire::actingAs($admin)->test('components.admin.user-table')
+        ->assertDontSee('Hapus permanen')
         ->call('deleteUser', $target->id)
-        ->assertDispatched('app-notification', message: 'Akun berhasil dihapus permanen. Semua laporan dan riwayatnya tetap tersimpan.', type: 'success');
+        ->assertForbidden();
 
-    expect(User::query()->whereKey($target->id)->exists())->toBeFalse()
-        ->and($notification->fresh())->toBeNull();
-    $this->assertDatabaseHas('activity_logs', [
+    expect(User::query()->whereKey($target->id)->exists())->toBeTrue()
+        ->and($notification->fresh())->not->toBeNull();
+    $this->assertDatabaseMissing('activity_logs', [
         'user_id' => $admin->id,
         'action' => 'user_deleted',
         'subject_id' => $target->id,
     ]);
 });
 
-it('deletes an account while keeping its reports and immutable activity history', function (): void {
+it('refuses to delete accounts linked to retained reports and histories', function (): void {
     $admin = User::factory()->create([
         'role' => UserRole::SUPER_ADMIN,
         'must_change_password' => false,
@@ -242,28 +243,28 @@ it('deletes an account while keeping its reports and immutable activity history'
 
     Livewire::actingAs($admin)->test('components.admin.user-table')
         ->call('deleteUser', $target->id)
-        ->assertDispatched('app-notification', message: 'Akun berhasil dihapus permanen. Semua laporan dan riwayatnya tetap tersimpan.', type: 'success');
+        ->assertForbidden();
 
-    expect(User::query()->whereKey($target->id)->exists())->toBeFalse()
-        ->and(ActivityLog::query()->find($oldActivity->id)?->user)->toBeNull();
+    expect(User::query()->whereKey($target->id)->exists())->toBeTrue()
+        ->and(ActivityLog::query()->find($oldActivity->id)?->user?->is($target))->toBeTrue();
 
     $this->assertDatabaseHas('reports', [
         'id' => $report->id,
         'ticket_no' => 'IDN-DELETE-ACCOUNT-01',
-        'reporter_id' => null,
+        'reporter_id' => $target->id,
         'title' => 'Lampu koridor rusak',
     ]);
     $this->assertDatabaseHas('report_status_histories', [
         'id' => $history->id,
         'report_id' => $report->id,
-        'changed_by' => null,
+        'changed_by' => $target->id,
         'note' => 'Laporan diterima.',
     ]);
     $this->assertDatabaseHas('report_attachments', [
         'id' => $attachment->id,
         'report_id' => $report->id,
         'file_path' => 'reports/IDN-DELETE-ACCOUNT-01/before/photo.jpg',
-        'uploaded_by' => null,
+        'uploaded_by' => $target->id,
     ]);
     $this->assertDatabaseHas('activity_logs', [
         'id' => $oldActivity->id,

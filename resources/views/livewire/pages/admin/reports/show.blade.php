@@ -60,10 +60,11 @@
                 <h2 class="text-lg font-extrabold">Riwayat status</h2>
                 <ol class="mt-4 divide-y divide-blue-50">
                     @foreach ($report->statusHistories->sortBy('created_at') as $history)
+                        @php($historyAt = $history->created_at ?? ($history->to_status === \App\Models\Report::STATUS_DIKIRIM ? $report->created_at : null))
                         <li wire:key="history-{{ $history->id }}" class="grid gap-2 py-3 text-sm sm:grid-cols-[140px_minmax(0,1fr)_auto] sm:items-start">
                             <span @class(['w-fit rounded-full px-3 py-1 text-xs font-bold', $statusClasses[$history->to_status] ?? 'bg-slate-100 text-slate-700'])>{{ $statusLabels[$history->to_status] ?? $history->to_status }}</span>
                             <span>{{ $history->changedBy?->name ?? ($history->changed_by === null ? 'Sistem' : 'Admin') }}@if ($history->note)<span class="mt-1 block whitespace-pre-line text-slate-600">{{ $history->note }}</span>@endif</span>
-                            @if ($history->created_at)<time datetime="{{ $history->created_at->toIso8601String() }}" class="grid gap-0.5 text-xs text-slate-500"><span>{{ $history->created_at->timezone('Asia/Jakarta')->format('d M Y') }}</span><span>{{ $history->created_at->timezone('Asia/Jakarta')->format('H:i') }} WIB</span></time>@else<span class="text-xs text-slate-500">Waktu tidak tersedia</span>@endif
+                            @if ($historyAt)<time datetime="{{ $historyAt->toIso8601String() }}" class="grid gap-0.5 text-xs text-slate-500"><span>{{ $historyAt->timezone('Asia/Jakarta')->format('d M Y') }}</span><span>{{ $historyAt->timezone('Asia/Jakarta')->format('H:i') }} WIB</span></time>@else<span class="text-xs text-slate-500">Waktu tidak tersedia</span>@endif
                         </li>
                     @endforeach
                 </ol>

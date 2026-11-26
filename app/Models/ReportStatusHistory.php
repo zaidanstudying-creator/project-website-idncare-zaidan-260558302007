@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['report_id', 'from_status', 'to_status', 'note', 'changed_by'])]
+#[Fillable(['report_id', 'from_status', 'to_status', 'note', 'changed_by', 'created_at'])]
 class ReportStatusHistory extends Model
 {
     public $timestamps = false;

@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f4f6f9">
     @include('layouts.components.theme-bootstrap')
     <title>{{ $code }} — IDN CARE</title>
-    <style>
+    <style nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
         :root {
             color-scheme: light;
             font-family: "Plus Jakarta Sans", "Poppins", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -105,7 +105,7 @@
             <p class="note">{{ $note }}</p>
         </section>
     </main>
-    <script>
+    <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
         const errorThemeChoices = [...document.querySelectorAll('[data-theme-choice]')];
         const syncErrorThemeChoices = () => {
             const activeTheme = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';

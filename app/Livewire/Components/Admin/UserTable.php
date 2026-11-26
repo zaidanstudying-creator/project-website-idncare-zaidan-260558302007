@@ -107,29 +107,9 @@ class UserTable extends Component
         $this->dispatch('app-notification', message: $wasActive ? 'Akun dinonaktifkan.' : 'Akun berhasil diaktifkan kembali.', type: 'success');
     }
 
-    public function deleteUser(int $userId, ActivityLogService $logs): void
+    public function deleteUser(int $userId): void
     {
-        $actor = auth()->user();
-        abort_if($actor->getKey() === $userId, 422, 'Super Admin tidak dapat menghapus akunnya sendiri.');
-
-        DB::transaction(function () use ($actor, $userId, $logs): void {
-            $target = User::query()->lockForUpdate()->findOrFail($userId);
-            abort_if($actor->is($target), 422, 'Super Admin tidak dapat menghapus akunnya sendiri.');
-
-            $logs->record($actor, 'user_deleted', $target, [
-                'user_code' => $target->user_code,
-                'role' => $target->role->value,
-            ]);
-
-            DB::table('reports')->where('reporter_id', $userId)->update(['reporter_id' => null]);
-            DB::table('report_status_histories')->where('changed_by', $userId)->update(['changed_by' => null]);
-            DB::table('report_attachments')->where('uploaded_by', $userId)->update(['uploaded_by' => null]);
-            $target->notifications()->delete();
-            DB::table('sessions')->where('user_id', $userId)->delete();
-            $target->delete();
-        });
-
-        $this->dispatch('app-notification', message: 'Akun berhasil dihapus permanen. Semua laporan dan riwayatnya tetap tersimpan.', type: 'success');
+        abort(403, 'Penghapusan akun tidak tersedia. Nonaktifkan akun untuk menghentikan akses tanpa menghapus riwayat.');
     }
 
     public function render()

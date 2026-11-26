@@ -11,6 +11,7 @@ use App\Models\ReportType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -152,9 +153,32 @@ it('stores a status transition, history, and private after photo atomically', fu
         ->and($attachment->uploaded_by)->toBe($admin->id)
         ->and($history->from_status)->toBe(Report::STATUS_DIPROSES)
         ->and($history->to_status)->toBe(Report::STATUS_SELESAI)
-        ->and($history->changed_by)->toBe($admin->id);
+        ->and($history->changed_by)->toBe($admin->id)
+        ->and($history->created_at)->not->toBeNull();
     Storage::disk('local')->assertExists($attachment->file_path);
     Storage::disk('public')->assertMissing($attachment->file_path);
+});
+
+it('shows the report creation time for a legacy submission history without a timestamp', function (): void {
+    $this->travelTo(Carbon::create(2026, 11, 26, 10, 15, 0, 'Asia/Jakarta'));
+    $student = User::factory()->create(['must_change_password' => false]);
+    $report = handlingReport(handlingType(ReportType::FACILITAS), $student, ['status' => Report::STATUS_DIKIRIM]);
+    ReportStatusHistory::query()->create([
+        'report_id' => $report->id,
+        'from_status' => null,
+        'to_status' => Report::STATUS_DIKIRIM,
+        'changed_by' => $student->id,
+    ]);
+    $admin = User::factory()->create(['role' => UserRole::ADMIN_SARPRAS, 'must_change_password' => false]);
+
+    $response = $this->actingAs($admin)
+        ->withSession(['auth_version' => $admin->auth_version])
+        ->get(route('admin.reports.show', $report));
+
+    $response->assertOk()
+        ->assertSee('26 Nov 2026')
+        ->assertSee('10:15 WIB')
+        ->assertDontSee('Waktu tidak tersedia');
 });
 
 it('requires an after photo before completing a facility report and preserves state on failure', function (): void {

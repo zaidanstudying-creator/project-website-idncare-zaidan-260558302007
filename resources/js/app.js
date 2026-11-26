@@ -695,6 +695,8 @@ document.querySelectorAll('[data-password-toggle]').forEach((button) => {
 const reportPhotoInput = document.querySelector('#photos[data-file-preview]');
 if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
     const reportForm = reportPhotoInput.form;
+    const cameraInput = reportForm.querySelector('[data-report-camera-input]');
+    const cameraButton = reportForm.querySelector('[data-open-report-camera]');
     const preview = document.getElementById(reportPhotoInput.dataset.filePreview);
     const uploadStatus = reportForm.querySelector('[data-photo-upload-status]');
     const submitButtons = [...reportForm.querySelectorAll('button[type="submit"], input[type="submit"]')];
@@ -721,6 +723,15 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
         allowNextChangeEvent = true;
         reportPhotoInput.dispatchEvent(new Event('change', { bubbles: true }));
     };
+    cameraButton?.addEventListener('click', () => cameraInput?.click());
+    cameraInput?.addEventListener('change', () => {
+        const cameraFiles = [...(cameraInput.files ?? [])];
+        if (cameraFiles.length === 0) return;
+
+        setInputFiles([...selectedPhotos, ...cameraFiles]);
+        dispatchInputChange();
+        cameraInput.value = '';
+    });
     const renderPhotoPreview = () => {
         if (!preview) return;
         previewUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -799,7 +810,11 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
         }
     };
     const encodePhoto = async (file, maxDimension, quality) => {
-        if (!file.type.startsWith('image/') || file.size <= 150 * 1024) return file;
+        const isSupportedImage = ['image/jpeg', 'image/png'].includes(file.type.toLowerCase());
+        if (isSupportedImage && file.size <= 150 * 1024) return file;
+        if (!file.type.startsWith('image/')) {
+            throw new Error('Pilih foto dari galeri dengan format JPG atau PNG.');
+        }
 
         const bitmap = await createImageBitmap(file);
         try {
@@ -826,7 +841,8 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
 
     const optimizePhotos = async (files) => {
         const originalSize = files.reduce((total, file) => total + file.size, 0);
-        if (originalSize <= maxPhotoPayloadBytes) return { files, originalSize, optimizedSize: originalSize };
+        const containsUnsupportedImage = files.some((file) => !['image/jpeg', 'image/png'].includes(file.type.toLowerCase()));
+        if (originalSize <= maxPhotoPayloadBytes && !containsUnsupportedImage) return { files, originalSize, optimizedSize: originalSize };
 
         const compressionSteps = [
             { maxDimension: 1920, quality: 0.82 },

@@ -79,7 +79,8 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
         ->and($attachment->kind)->toBe('before')
         ->and($attachment->uploaded_by)->toBe($student->id)
         ->and($history->to_status)->toBe(Report::STATUS_DIKIRIM)
-        ->and($history->changed_by)->toBe($student->id);
+        ->and($history->changed_by)->toBe($student->id)
+        ->and($history->created_at)->not->toBeNull();
 
     $adminNotification = $sarpras->notifications()->sole();
     expect($adminNotification->data)->toMatchArray([
@@ -254,6 +255,30 @@ it('rejects a valid image payload whose filename extension is outside the allowl
         ->assertHasErrors(['photos.0' => 'extensions']);
 
     expect(Report::query()->count())->toBe(0);
+});
+
+it('rejects non-image bytes disguised with an allowed photo extension', function (): void {
+    Storage::fake('local');
+    $student = User::factory()->create(['must_change_password' => false]);
+    $type = createReportType(ReportType::FACILITAS);
+    $category = createCategoryFor($type);
+    $location = Location::query()->create(['name' => 'Gedung Utama', 'is_active' => true]);
+    $spoofedImage = UploadedFile::fake()->createWithContent('spoofed.jpg', 'bukan data gambar');
+    $spoofedImage->mimeType('text/plain');
+
+    Livewire::actingAs($student)
+        ->test(CreateForm::class, ['type' => $type->code])
+        ->set('title', 'Foto dengan konten tidak valid')
+        ->set('description', 'Uji konten berkas yang menyamar sebagai foto.')
+        ->set('categoryId', (string) $category->id)
+        ->set('locationId', (string) $location->id)
+        ->set('requestedVisibility', 'rahasia')
+        ->set('photos', [$spoofedImage])
+        ->call('submit')
+        ->assertHasErrors(['photos.0' => 'image']);
+
+    expect(Report::query()->count())->toBe(0)
+        ->and(Storage::disk('local')->allFiles('reports'))->toBeEmpty();
 });
 
 it('lists only reports owned by the student including anonymous reports through the token', function (): void {

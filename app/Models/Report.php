@@ -18,6 +18,8 @@ use LogicException;
 ])]
 class Report extends Model
 {
+    protected $hidden = ['reporter_token'];
+
     public const STATUS_DIKIRIM = 'dikirim';
 
     public const STATUS_DIVERIFIKASI = 'diverifikasi';

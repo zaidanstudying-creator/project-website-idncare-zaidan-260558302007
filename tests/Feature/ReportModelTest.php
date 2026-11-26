@@ -33,6 +33,25 @@ function createScopedReport(ReportType $type, User $reporter, array $attributes 
     ]);
 }
 
+it('does not serialize an anonymous reporter token', function (): void {
+    config(['app.report_key' => str_repeat('a', 64)]);
+    $reporter = User::factory()->create();
+    $type = ReportType::create(['code' => ReportType::PELANGGARAN, 'name' => 'Laporan Dugaan Pelanggaran']);
+    $token = Report::reporterTokenFor($reporter);
+    $report = createScopedReport($type, $reporter, [
+        'reporter_id' => null,
+        'reporter_token' => $token,
+        'is_anonymous' => true,
+        'requested_visibility' => Report::VISIBILITY_RAHASIA,
+        'visibility_status' => Report::VISIBILITY_APPROVED,
+        'approved_visibility' => Report::VISIBILITY_RAHASIA,
+    ]);
+
+    expect($report->toArray())->not->toHaveKey('reporter_token')
+        ->and(json_encode($report))->not->toContain($token)
+        ->and($report->reporter_token)->toBe($token);
+});
+
 it('lets a reporter retrieve their anonymous violation using only the HMAC token', function (): void {
     config(['app.report_key' => str_repeat('a', 64)]);
     $reporter = User::factory()->create();

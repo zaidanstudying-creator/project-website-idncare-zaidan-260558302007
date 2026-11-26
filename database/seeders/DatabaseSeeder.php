@@ -25,6 +25,10 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! app()->environment('local', 'testing')) {
+            throw new LogicException('DatabaseSeeder is limited to local and testing environments.');
+        }
+
         $demoPassword = config('app.demo_user_password');
 
         if (! is_string($demoPassword) || $demoPassword === '') {
@@ -56,7 +60,7 @@ class DatabaseSeeder extends Seeder
             ReportType::ASPIRASI => 'Aspirasi',
             ReportType::PELANGGARAN => 'Laporan Dugaan Pelanggaran',
         ])->mapWithKeys(fn (string $name, string $code): array => [
-            $code => ReportType::updateOrCreate(['code' => $code], ['name' => $name]),
+            $code => ReportType::firstOrCreate(['code' => $code], ['name' => $name]),
         ]);
 
         $categories = [
@@ -67,7 +71,7 @@ class DatabaseSeeder extends Seeder
 
         foreach ($categories as $typeCode => $names) {
             foreach ($names as $name) {
-                Category::updateOrCreate(
+                Category::firstOrCreate(
                     ['report_type_id' => $types[$typeCode]->id, 'name' => $name],
                     ['is_active' => true],
                 );
@@ -75,7 +79,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $locations = collect(['Gedung Utama', 'Perpustakaan', 'Area Kampus'])->mapWithKeys(fn (string $name): array => [
-            $name => Location::updateOrCreate(['name' => $name], ['is_active' => true]),
+            $name => Location::firstOrCreate(['name' => $name], ['is_active' => true]),
         ]);
 
         $student = $users[UserRole::MAHASISWA->value];
@@ -83,7 +87,9 @@ class DatabaseSeeder extends Seeder
         $kemahasiswaan = $users[UserRole::ADMIN_KEMAHASISWAAN->value];
 
         foreach ($this->demoReports($types, $student, $locations) as $index => $data) {
-            $report = Report::updateOrCreate(['ticket_no' => $data['ticket_no']], $data['attributes']);
+            $report = Report::query()
+                ->withoutGlobalScope('active')
+                ->firstOrCreate(['ticket_no' => $data['ticket_no']], $data['attributes']);
             $this->seedStatusHistory($report, $data, $student, $sarpras, $kemahasiswaan);
 
             foreach ($data['attachments'] as $kind) {
@@ -188,12 +194,14 @@ class DatabaseSeeder extends Seeder
     private function seedAttachment(Report $report, string $kind, ?int $uploadedBy): void
     {
         $path = "demo/{$report->ticket_no}-{$kind}.png";
-        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lS8AAAAASUVORK5CYII=', true);
-
-        Storage::disk('local')->put($path, $png);
-        ReportAttachment::firstOrCreate(
+        $attachment = ReportAttachment::firstOrCreate(
             ['report_id' => $report->id, 'kind' => $kind],
             ['file_path' => $path, 'uploaded_by' => $uploadedBy, 'created_at' => now()],
         );
+
+        if ($attachment->wasRecentlyCreated && ! Storage::disk('local')->exists($attachment->file_path)) {
+            $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lS8AAAAASUVORK5CYII=', true);
+            Storage::disk('local')->put($attachment->file_path, $png);
+        }
     }
 }

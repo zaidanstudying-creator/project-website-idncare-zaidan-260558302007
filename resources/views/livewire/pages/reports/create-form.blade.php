@@ -125,13 +125,18 @@
                     <label for="photos" class="mb-2 block text-sm font-bold">
                         @if ($isFacility) Foto kerusakan <span class="text-red-600">*</span> @elseif ($isViolation) Bukti foto (opsional) @else Foto pendukung (opsional) @endif
                     </label>
-                    <div class="report-photo-upload rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/70 p-6 text-center sm:p-8">
+                    <div class="report-photo-upload rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/70 p-4 text-center sm:p-6">
                         <p class="font-bold">Pilih foto untuk dilampirkan</p>
-                        <p class="mt-2 text-sm text-slate-600">{{ $isFacility ? 'Wajib minimal satu foto.' : 'Lampiran boleh dikosongkan.' }} JPG atau PNG, maksimal 5 foto dan 4 MB per foto. Foto akan diperkecil otomatis jika total unggahan terlalu besar.</p>
-                        <input id="photos" wire:model="photos" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple data-file-preview="photo-preview" data-file-preview-user="{{ auth()->id() }}" data-file-preview-type="{{ $reportType->code }}" @required($isFacility) class="report-photo-input mt-4 block w-full cursor-pointer rounded-xl border border-blue-100 bg-white p-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-blue-100 file:px-4 file:py-2 file:font-semibold file:text-[#0B5FFF]" @if ($photoErrors) aria-invalid="true" aria-describedby="photos-error" @endif>
+                        <p class="mt-1.5 text-sm text-slate-600">{{ $isFacility ? 'Wajib minimal satu foto.' : 'Lampiran boleh dikosongkan.' }} JPG/PNG, maks. 5 foto dan 4 MB per foto. Foto diperkecil otomatis bila perlu.</p>
+                        <div class="mt-3 flex flex-wrap justify-center gap-2">
+                            <label for="photos" class="cursor-pointer rounded-full bg-[#0B5FFF] px-4 py-3 text-sm font-bold text-white">Pilih dari galeri</label>
+                            <button type="button" data-open-report-camera class="rounded-full border border-[#0B5FFF] px-4 py-3 text-sm font-bold text-[#0B5FFF]">Ambil foto</button>
+                        </div>
+                        <input id="photos" wire:model="photos" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple data-file-preview="photo-preview" data-file-preview-user="{{ auth()->id() }}" data-file-preview-type="{{ $reportType->code }}" @required($isFacility) class="report-photo-input mt-3 block w-full cursor-pointer rounded-xl border border-blue-100 bg-white p-2.5 text-sm file:mr-2 file:rounded-full file:border-0 file:bg-blue-100 file:px-3 file:py-2 file:font-semibold file:text-[#0B5FFF]" @if ($photoErrors) aria-invalid="true" aria-describedby="photos-error" @endif>
+                        <input type="file" accept="image/*" capture="environment" data-report-camera-input hidden>
                         <div id="photo-preview" wire:ignore class="report-photo-preview mt-4" aria-live="polite"></div>
-                        <p class="mt-3 text-xs text-slate-600">Draf foto disimpan sementara di browser ini untuk memulihkan pratinjau setelah refresh, lalu dihapus setelah laporan dikirim atau maksimal 24 jam.</p>
-                        <p data-photo-upload-status role="status" aria-live="polite" class="report-photo-help mt-3 text-sm text-slate-600">Unggahan foto dibatasi agar laporan bisa terkirim dengan lancar.</p>
+                        <p class="mt-2 text-xs text-slate-600">Pratinjau disimpan sementara di browser; dihapus setelah laporan terkirim atau maksimal 24 jam.</p>
+                        <p data-photo-upload-status role="status" aria-live="polite" class="report-photo-help mt-2 text-sm text-slate-600">Ukuran foto dibatasi agar laporan tetap lancar dikirim.</p>
                         <p wire:loading wire:target="photos" role="status" class="mt-2 text-sm font-semibold text-[#0B5FFF]">Mengunggah foto…</p>
                         @if ($photoErrors)<div id="photos-error" class="field-error">@foreach ($errors->getMessages() as $key => $messages)@if (str_starts_with($key, 'photos'))@foreach ($messages as $message)<p>{{ $message }}</p>@endforeach @endif @endforeach</div>@endif
                     </div>
@@ -143,7 +148,7 @@
                         <p class="mt-1 text-sm leading-6 text-slate-600">Laporan dugaan pelanggaran hanya dapat dilihat pelapor dan admin penanganan. Pengaturan ini selalu dipaksakan oleh server.</p>
                         <label class="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-white p-4">
                             <input type="checkbox" wire:model="isAnonymous" class="mt-1 rounded border-slate-300 text-[#0B5FFF] focus:ring-[#0B5FFF]" @if ($errors->has('isAnonymous')) aria-invalid="true" aria-describedby="anonymous-error" @endif>
-                            <span><span class="font-bold">Kirim sebagai anonim</span><span class="mt-1 block text-sm leading-5 text-slate-600">Jika dicentang, identitas tidak terlihat oleh admin mana pun dan tidak dapat dibuka. Kamu tetap dapat melihat laporanmu.</span></span>
+                            <span><span class="font-bold">Kirim sebagai anonim</span><span class="mt-1 block text-sm leading-5 text-slate-600">Identitasmu tidak ditampilkan di antarmuka admin. Token internal mengaitkan laporan ke akunmu agar kamu tetap dapat melihat statusnya. Laporan tetap rahasia. Perlindungan ini berlaku di aplikasi; akses langsung ke server berada di luar cakupannya.</span></span>
                         </label>
                         @error('isAnonymous')<p id="anonymous-error" class="field-error">{{ $message }}</p>@enderror
                     </div>

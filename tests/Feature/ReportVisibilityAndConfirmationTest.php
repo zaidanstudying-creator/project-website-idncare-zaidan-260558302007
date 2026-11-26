@@ -299,11 +299,16 @@ it('serves a public report attachment only to users allowed to view that report'
 });
 
 it('auto-confirms only completed reports with no response after seven days', function (): void {
+    $this->travelTo(now()->startOfMinute());
     $reporter = User::factory()->create(['must_change_password' => false]);
     $type = visibilityType(ReportType::FACILITAS);
     $old = visibilityReport($type, $reporter, [
         'status' => Report::STATUS_SELESAI,
         'completed_at' => now()->subDays(7)->subMinute(),
+    ]);
+    $atSevenDays = visibilityReport($type, $reporter, [
+        'status' => Report::STATUS_SELESAI,
+        'completed_at' => now()->subDays(7),
     ]);
     $recent = visibilityReport($type, $reporter, [
         'status' => Report::STATUS_SELESAI,
@@ -327,10 +332,16 @@ it('auto-confirms only completed reports with no response after seven days', fun
     $this->artisan('reports:auto-confirm')->expectsOutput('1 laporan dikonfirmasi otomatis.')->assertSuccessful();
 
     expect($old->fresh()->confirmed_at)->not->toBeNull()
+        ->and($atSevenDays->fresh()->confirmed_at)->toBeNull()
         ->and($recent->fresh()->confirmed_at)->toBeNull()
         ->and($alreadyConfirmed->fresh()->confirmed_at->toDateTimeString())->toBe($alreadyConfirmed->confirmed_at->toDateTimeString())
         ->and($inProgress->fresh()->confirmed_at)->toBeNull()
         ->and($reopened->fresh()->confirmed_at)->toBeNull();
+
+    $this->travel(1)->minute();
+    $this->artisan('reports:auto-confirm')->expectsOutput('1 laporan dikonfirmasi otomatis.')->assertSuccessful();
+
+    expect($atSevenDays->fresh()->confirmed_at)->not->toBeNull();
 });
 
 it('auto-confirms an anonymous violation without linking the reporter in its activity log', function (): void {

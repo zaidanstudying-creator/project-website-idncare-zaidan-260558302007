@@ -22,7 +22,7 @@ class AutoConfirmReports extends Command
             ->where('status', Report::STATUS_SELESAI)
             ->whereNull('confirmed_at')
             ->whereNotNull('completed_at')
-            ->where('completed_at', '<=', $cutoff)
+            ->where('completed_at', '<', $cutoff)
             ->chunkById(100, function ($reports) use ($confirmedAt, $cutoff, $activityLogs, &$count): void {
                 foreach ($reports as $report) {
                     DB::transaction(function () use ($report, $confirmedAt, $cutoff, $activityLogs, &$count): void {
@@ -32,7 +32,7 @@ class AutoConfirmReports extends Command
                             || $lockedReport->status !== Report::STATUS_SELESAI
                             || $lockedReport->confirmed_at !== null
                             || $lockedReport->completed_at === null
-                            || $lockedReport->completed_at->gt($cutoff)) {
+                            || $lockedReport->completed_at->gte($cutoff)) {
                             return;
                         }
 

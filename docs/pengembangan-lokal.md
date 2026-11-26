@@ -10,13 +10,23 @@ Dokumen ini berlaku untuk laptop dan database pengujian. Jangan menjalankan peri
 4. Buat `APP_KEY` hanya untuk instalasi baru dengan `php artisan key:generate`. Jangan mengganti `APP_KEY` pada instalasi yang sudah dipakai.
 5. Isi `REPORT_TOKEN_KEY` sekali, sebelum mengirim laporan anonim. Jangan menggantinya setelah ada laporan anonim; kehilangan key lama membuat kepemilikan token laporan tersebut tidak dapat dipulihkan dari database saja.
 6. Jalankan `php artisan migrate --seed` setelah memastikan koneksi menunjuk database lokal yang benar. Seeder membuat atau memperbarui data demo bertanda IDN-DEMO; akun dengan kode yang sudah ada tidak ditimpa atau direset passwordnya.
-7. Jalankan `npm run dev` pada satu terminal dan `php artisan serve` pada terminal lain.
+7. Untuk menyalakan server lokal, Vite, queue listener, dan scheduler sekaligus, jalankan:
+
+   ```bash
+   composer run dev
+   ```
+
+   Biarkan proses berjalan selama demo. Hentikan dengan `Ctrl+C`. Perintah ini menambahkan `schedule:work` hanya di environment `local`.
+
+   Jika menjalankan server dan Vite secara manual, buka terminal ketiga dan jalankan `php artisan schedule:work`. Jangan menyalakan worker kedua bersamaan.
+
+   Jika memakai Laravel Herd, Herd sudah menjalankan web server. Jalankan `npm run dev` dan `php artisan schedule:work` pada dua terminal terpisah selama demo; jangan menjalankan `composer run dev` bersamaan.
 
 `php artisan migrate:fresh --seed` menghapus seluruh tabel database yang dipilih. Gunakan hanya database uji terpisah yang boleh direset, bukan database lokal utama.
 
 ## Akun demo
 
-Empat akun seeder lokal memakai password demo bersama `Demo-IdnCare-2026!`; hanya untuk laptop/pengujian, jangan gunakan di server. Keempat kode masuk adalah:
+Empat akun seeder lokal memakai nilai `DEMO_USER_PASSWORD` dari `.env` lokal; password tidak disimpan di dokumentasi dan jangan gunakan untuk akun production. Keempat kode masuk adalah:
 
 | Peran | Kode masuk |
 | --- | --- |
@@ -45,6 +55,6 @@ Suite tes memakai HTTP mock; itu tidak membuktikan koneksi atau kuota akun Groq.
 - `npm run build` membangun aset Vite.
 - `vendor/bin/pint --test` memeriksa format PHP.
 - `php artisan schedule:list` memeriksa jadwal terdaftar.
-- `php artisan schedule:work` dapat dijalankan pada terminal pengembangan terpisah. Scheduler auto-confirm terjadwal setiap hari pukul 00.00 `Asia/Jakarta`; gunakan hanya pada database uji ketika memverifikasi efek terhadap data.
+- `php artisan schedule:work` menjalankan scheduler lokal terus-menerus. Perintah `reports:auto-confirm` diperiksa setiap menit pada timezone `Asia/Jakarta`; laporan baru dikonfirmasi setelah melewati tujuh hari. Scheduler mengubah data laporan, jadi gunakan hanya database lokal/demo yang memang boleh diperbarui.
 
 Browser manual tetap diperlukan untuk memastikan navigasi dan tampilan pada ukuran layar sasaran. Tes otomatis feature bukan pengganti uji browser.

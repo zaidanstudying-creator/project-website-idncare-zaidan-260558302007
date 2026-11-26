@@ -9,5 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('reports:auto-confirm')
-    ->dailyAt('00:00')
+    ->everyMinute()
     ->timezone('Asia/Jakarta');

@@ -74,7 +74,15 @@ IDN CARE adalah aplikasi layanan kampus untuk mengirim, memantau, dan menangani 
 
 ## Menjalankan project
 
-Jalankan server Laravel dan Vite pada dua terminal terpisah:
+Untuk demo lokal, cara termudah adalah menjalankan seluruh proses pengembangan dengan satu perintah:
+
+```bash
+composer run dev
+```
+
+Perintah ini juga menyalakan scheduler lokal. Biarkan terminal tetap terbuka selama demo; `Ctrl+C` akan menghentikan semua proses.
+
+Jika menjalankan server dan Vite secara manual, buka tiga terminal:
 
 Terminal 1:
 
@@ -88,7 +96,15 @@ Terminal 2:
 npm run dev
 ```
 
-Buka alamat yang ditampilkan oleh `php artisan serve` (biasanya `http://127.0.0.1:8000`). Jika menggunakan Laravel Herd, buka domain lokal proyek melalui Herd dan jalankan `npm run dev` untuk aset saat pengembangan.
+Terminal 3:
+
+```bash
+php artisan schedule:work
+```
+
+Jalankan hanya satu worker scheduler. Scheduler auto-confirm memeriksa laporan setiap menit dan dapat mengubah status laporan yang sudah melewati tujuh hari, jadi gunakan database lokal/demo yang benar.
+
+Buka alamat yang ditampilkan oleh `php artisan serve` (biasanya `http://127.0.0.1:8000`). Jika menggunakan Laravel Herd, buka domain lokal proyek melalui Herd, jalankan `npm run dev` untuk aset, dan jalankan `php artisan schedule:work` di terminal lain selama demo. Jangan jalankan scheduler kedua jika `composer run dev` sudah digunakan.
 
 Untuk membuat aset frontend siap production:
 

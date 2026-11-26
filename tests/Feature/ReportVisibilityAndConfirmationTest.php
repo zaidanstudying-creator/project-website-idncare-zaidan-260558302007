@@ -12,8 +12,10 @@ use App\Models\ReportAttachment;
 use App\Models\ReportStatusHistory;
 use App\Models\ReportType;
 use App\Models\User;
+use Illuminate\Console\Scheduling\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -342,6 +344,16 @@ it('auto-confirms only completed reports with no response after seven days', fun
     $this->artisan('reports:auto-confirm')->expectsOutput('1 laporan dikonfirmasi otomatis.')->assertSuccessful();
 
     expect($atSevenDays->fresh()->confirmed_at)->not->toBeNull();
+});
+
+it('schedules automatic confirmation every minute in Jakarta time', function (): void {
+    $event = collect(Schedule::events())->first(
+        fn (Event $event): bool => str_contains((string) $event->command, 'reports:auto-confirm'),
+    );
+
+    expect($event)->not->toBeNull()
+        ->and($event->expression)->toBe('* * * * *')
+        ->and($event->timezone)->toBe('Asia/Jakarta');
 });
 
 it('auto-confirms an anonymous violation without linking the reporter in its activity log', function (): void {

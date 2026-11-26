@@ -17,12 +17,19 @@ class SecurityHeaders
     public function handle(Request $request, Closure $next): Response
     {
         $nonce = Vite::useCspNonce();
+        $connectSources = ["'self'"];
+
+        if (app()->environment('local') && is_file(Vite::hotFile())) {
+            $connectSources[] = 'ws:';
+            $connectSources[] = 'wss:';
+        }
+
         $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('Content-Security-Policy-Report-Only', implode('; ', [
+        $response->headers->set('Content-Security-Policy', implode('; ', [
             "default-src 'self'",
             "base-uri 'self'",
             "object-src 'none'",
@@ -33,7 +40,7 @@ class SecurityHeaders
             "style-src-attr 'unsafe-inline'",
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
-            "connect-src 'self'",
+            'connect-src '.implode(' ', $connectSources),
         ]));
 
         return $response;

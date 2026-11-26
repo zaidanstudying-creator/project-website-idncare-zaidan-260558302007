@@ -7,9 +7,9 @@ Lingkungan setelah pembaruan dependency: PHP 8.4, Laravel 13.44.1, Livewire 4.4.
 
 Konfigurasi kunci aplikasi telah dicoba dan diverifikasi ulang tanpa membaca atau mencetak nilai secret: `APP_KEY` tersedia dan dapat melakukan round-trip enkripsi Laravel; `REPORT_TOKEN_KEY` tersedia dengan panjang 64 karakter dan menghasilkan HMAC-SHA256 64 karakter. Tidak ada secret production yang dibuat, diganti, atau ditulis ke repository.
 
-Perbaikan kode yang dapat diverifikasi telah diterapkan untuk isolasi konfigurasi test, perlindungan serialisasi token pelapor, keamanan seeder, CSP Report-Only, pencatatan waktu riwayat status, uji file upload, batas auto-confirm, dan penghapusan permanen akun yang bertentangan dengan PRD. Seluruh 163 test lulus (984 assertion), build Vite lulus, dan validasi Composer lulus.
+Perbaikan kode yang dapat diverifikasi telah diterapkan untuk isolasi konfigurasi test, perlindungan serialisasi token pelapor, keamanan seeder, CSP enforcement, pencatatan waktu riwayat status, uji file upload, batas auto-confirm, dan penghapusan permanen akun yang bertentangan dengan PRD. Seluruh 166 test lulus (998 assertion), build Vite lulus, dan validasi Composer lulus.
 
-Status kesiapan produksi: **NOT READY / bukti belum lengkap**. Audit Composer/npm, regression test, build, dan browser QA terbaru lulus. Chrome berhasil menguji login Livewire, CSP Report-Only, chart kosong/terisi, serta upload form di empat ukuran layar. Scheduler OS, database production, deployment secrets, enforcement CSP, dan pengiriman laporan dengan foto nyata masih perlu diverifikasi.
+Status kesiapan produksi: **NOT READY / bukti belum lengkap**. Audit Composer/npm, regression test, dan build lulus. Chrome lokal kini menguji CSP enforcement pada halaman login dan Vite HMR; cakupan alur lain serta staging tetap perlu diverifikasi. Scheduler OS, database production, deployment secrets, dan pengiriman laporan dengan foto nyata juga masih perlu diverifikasi.
 
 ## 2. Initial Inspection
 
@@ -25,11 +25,11 @@ Status kesiapan produksi: **NOT READY / bukti belum lengkap**. Audit Composer/np
 |---|---|---|
 | BUG-01 APP_KEY dan REPORT_TOKEN_KEY | FIXED (konfigurasi dan pemeriksaan runtime); NOT VERIFIED untuk environment deployment | `APP_KEY` terdeteksi terkonfigurasi, round-trip enkripsi berhasil; REPORT token key panjang 64 karakter dan HMAC-SHA256 berhasil. Nilai tidak dicetak. `.env.example` menjelaskan pembuatan dan larangan rotasi. |
 | BUG-02 Vite manifest/build | FIXED | `npm run build` sukses dan menghasilkan `public/build/manifest.json` beserta CSS/JS production. |
-| BUG-03 Sinkronisasi suite Livewire | FIXED untuk suite yang tersedia | `php artisan test --compact`: 163 lulus, 984 assertion. Test dijalankan dengan SQLite in-memory terisolasi. |
+| BUG-03 Sinkronisasi suite Livewire | FIXED untuk suite yang tersedia | `php artisan test --compact`: 166 lulus, 998 assertion. Test dijalankan dengan SQLite in-memory terisolasi. |
 | BUG-04 Seeder dan DEMO_USER_PASSWORD | FIXED | Seeder dibatasi untuk `local`/`testing`, menjaga akun dan data yang sudah ada melalui `firstOrCreate`, serta menolak password kosong dengan pesan yang jelas. Idempotensi, perlindungan data, dan penolakan environment diuji. Seeder tidak dijalankan terhadap DB aplikasi. |
-| BUG-05 CSP | PARTIALLY FIXED | Header `Content-Security-Policy-Report-Only`, nonce Vite dan inline script, serta mode CSP-safe Livewire ditambahkan. Browser QA tidak mencatat violation pada alur yang diuji; enforcement dan cakupan deployment belum diverifikasi. |
+| BUG-05 CSP | PARTIALLY FIXED | Header `Content-Security-Policy` menegakkan policy dengan nonce Vite, inline script/style ber-nonce, dan mode CSP-safe Livewire. Feature test dan Chrome lokal mengonfirmasi halaman login serta Vite HMR berjalan tanpa pelanggaran CSP. WebSocket dilonggarkan hanya di `local` saat hot file aktif; koneksi production tetap `'self'`. Alur lain dan deployment staging belum diuji browser. |
 | BUG-06 Composer security advisory | FIXED | Laravel, Symfony, PHPUnit, Pest, dan dependency terkait diperbarui; `composer audit --locked` menyatakan tidak ada advisory. `npm audit --omit=dev` juga menemukan 0 vulnerability. |
-| BUG-07 Auto-confirm scheduler | FIXED pada aturan cutoff dan definisi jadwal; NOT VERIFIED untuk scheduler OS | Test memastikan laporan tepat 7 hari belum diproses dan diproses setelah melewati 7 hari. `routes/console.php` mendaftarkan command setiap hari pukul 00:00 Asia/Jakarta. Pemicu cron/Windows pada server belum diverifikasi. Pada pemeriksaan ulang workspace, `schedule:list` terhalang koneksi ke MySQL lokal. |
+| BUG-07 Auto-confirm scheduler | FIXED pada aturan cutoff, frekuensi jadwal, dan startup demo lokal; NOT VERIFIED untuk scheduler OS production | Test memastikan laporan tepat 7 hari belum diproses dan diproses setelah melewati 7 hari. `routes/console.php` menjalankan pemeriksaan setiap menit pada `Asia/Jakarta`. `composer run dev` menyalakan `schedule:work` hanya di environment local. Cron/Windows scheduler production belum diverifikasi. |
 
 ## 4. Root Cause Analysis
 
@@ -37,6 +37,7 @@ Status kesiapan produksi: **NOT READY / bukti belum lengkap**. Audit Composer/np
 - Serialisasi Eloquent umum dapat memuat atribut `reporter_token`; atribut tersebut sekarang disembunyikan dari serialisasi model dan memiliki regression test.
 - Seeder berpotensi menimpa atribut akun atau data contoh pada rerun. Operasi seed terkait kini hanya membuat record yang belum ada dan dibatasi pada environment lokal/test.
 - `ReportStatusHistory` mematikan timestamp otomatis dan `created_at` tidak masuk daftar mass-assignable, sehingga waktu yang diberikan oleh service dan seeder dibuang. Atribut kini diizinkan dan jalur submission, transisi status, serta seed diuji.
+- Scheduler Laravel hanya mendefinisikan jadwal; tidak ada proses pemanggil di stack demo lokal. Worker `schedule:work` kini ikut `composer run dev` pada environment `local`, dan auto-confirm diperiksa setiap menit agar berjalan dekat setelah batas tujuh hari.
 - Test upload spoof sebelumnya menggunakan fake file yang menganggap MIME sesuai ekstensi. Fixture baru menetapkan MIME non-image agar validasi `image` diuji secara bermakna.
 - Auto-confirm sebelumnya menggunakan cutoff inklusif, padahal persyaratan meminta laporan yang lebih dari 7 hari.
 - Penghapusan akun permanen menghapus keterkaitan historis laporan, notifikasi, sesi, dan lampiran. Aksi tersebut dihapus dari UI dan diblokir; deaktivasi tetap menjadi jalur penghentian akses.
@@ -44,9 +45,10 @@ Status kesiapan produksi: **NOT READY / bukti belum lengkap**. Audit Composer/np
 ## 5. Files Modified
 
 - Konfigurasi dan keamanan: `.env.example`, `phpunit.xml`, `config/livewire.php`, `app/Http/Middleware/SecurityHeaders.php`, `app/Models/Report.php`, `app/Models/ReportStatusHistory.php`.
-- Operasional dan integritas: `app/Console/Commands/AutoConfirmReports.php`, `database/seeders/DatabaseSeeder.php`, `app/Livewire/Components/Admin/UserTable.php`.
+- Operasional dan integritas: `app/Console/Commands/AutoConfirmReports.php`, `app/Providers/AppServiceProvider.php`, `routes/console.php`, `database/seeders/DatabaseSeeder.php`, `app/Livewire/Components/Admin/UserTable.php`.
 - Tampilan: `resources/views/errors/layout.blade.php`, `resources/views/layouts/components/theme-bootstrap.blade.php`, `resources/views/layouts/public.blade.php`, `resources/views/livewire/components/admin/user-table.blade.php`, `resources/views/livewire/pages/reports/create-form.blade.php`, `resources/views/livewire/pages/admin/reports/show.blade.php`, `resources/js/app.js`.
 - Test: `tests/Feature/DatabaseSeederTest.php`, `tests/Feature/LivewireUserTableTest.php`, `tests/Feature/ReportModelTest.php`, `tests/Feature/ReportSubmissionTest.php`, `tests/Feature/AdminReportHandlingTest.php`, `tests/Feature/ReportVisibilityAndConfirmationTest.php`, `tests/Feature/SecurityHardeningTest.php`.
+- Panduan keamanan/demo: `docs/akun-demo-lokal.md`, `docs/panduan-sidang.md`, `docs/pengembangan-lokal.md`.
 - `composer.lock` diperbarui untuk Laravel, Symfony, PHPUnit, Pest, dan dependency transitifnya.
 - Build Vite memperbarui manifest dan asset hasil kompilasi di `public/build/`.
 
@@ -54,7 +56,7 @@ Asset OG dan sebagian perubahan JS, halaman publik, form laporan, dan build tela
 
 ## 6. Security Improvements
 
-- `SecurityHeaders` menambahkan CSP Report-Only dengan `default-src 'self'`, nonce untuk script/style, pembatasan `object-src`, `base-uri`, `frame-ancestors`, serta sumber gambar dan koneksi yang diperlukan. `unsafe-eval` tidak diizinkan. `style-src-attr 'unsafe-inline'` masih dipakai demi kompatibilitas atribut gaya dinamis.
+- `SecurityHeaders` menegakkan CSP dengan `default-src 'self'`, nonce untuk script/style, pembatasan `object-src`, `base-uri`, `frame-ancestors`, serta sumber gambar dan koneksi yang diperlukan. `unsafe-eval` tidak diizinkan. `style-src-attr 'unsafe-inline'` masih dipakai demi kompatibilitas atribut gaya dinamis.
 - Livewire dikonfigurasi memakai bundle Alpine CSP-safe. Inline script dan style layout yang ditemukan diberi nonce.
 - `reporter_token` tidak lagi ikut `toArray()`/JSON model; nilai tetap tersedia secara internal untuk logika kepemilikan anonim.
 - Validasi upload diuji untuk ekstensi yang tidak diizinkan dan bytes non-image yang menyamar sebagai JPG.
@@ -118,7 +120,7 @@ Sumber primer: [Laravel advisory GHSA-8h64-cpq2-9h2g](https://github.com/laravel
 ## 12. Remaining Risks
 
 - Tidak ada advisori dependency aktif yang dilaporkan oleh audit Composer/npm setelah update.
-- Kebijakan CSP tetap Report-Only; alur Chrome yang diuji tidak menghasilkan pelanggaran, tetapi cakupan browser dan konfigurasi deployment belum cukup untuk mengaktifkan enforcement secara aman.
+- CSP enforcement sudah diuji di Chrome lokal pada halaman login dan Vite HMR; halaman lain dan environment staging/production belum diuji browser. Beberapa atribut gaya dinamis memang memerlukan `style-src-attr 'unsafe-inline'`; tinjau lagi bila atribut tersebut kelak dapat diganti dengan kelas atau style block ber-nonce.
 - Production HTTPS, deployment environment secrets, dan scheduler OS tidak dapat diverifikasi dari sandbox ini.
 - Uji pengiriman laporan lengkap dengan file foto fisik dan pemeriksaan perangkat/browser nyata belum dilakukan; browser QA menggunakan Chrome headless.
 
@@ -126,7 +128,7 @@ Sumber primer: [Laravel advisory GHSA-8h64-cpq2-9h2g](https://github.com/laravel
 
 - Audit Composer dan npm: PASS pada registry setelah jaringan host digunakan.
 - Status migrasi production: NOT VERIFIED. Pada database test seluruh 22 migrasi berstatus Ran.
-- Login Livewire, CSP Report-Only, chart kosong/terisi, serta responsivitas upload sudah diverifikasi di Chrome headless pada database SQLite sementara; pengiriman laporan dengan file foto fisik NOT VERIFIED.
+- Login Livewire, chart kosong/terisi, dan responsivitas upload sudah diverifikasi di Chrome headless pada database SQLite sementara. CSP enforcement diuji di Chrome lokal pada halaman login dan Vite HMR; alur halaman lain/staging serta pengiriman laporan dengan file foto fisik NOT VERIFIED.
 - Scheduler otomatis oleh Windows Task Scheduler atau Cron deployment: NOT VERIFIED; hanya definisi jadwal Artisan yang diverifikasi.
 - Secret dan konfigurasi deployment selain runtime lokal yang diperiksa: NOT VERIFIED.
 
@@ -148,11 +150,11 @@ Sumber primer: [Laravel advisory GHSA-8h64-cpq2-9h2g](https://github.com/laravel
 - Pengembangan lokal: `php artisan schedule:work`.
 - Linux: tambahkan cron setiap menit: `* * * * * cd /path/to/app && php artisan schedule:run >> /dev/null 2>&1`.
 - Windows Task Scheduler: buat task berulang tiap 1 menit yang menjalankan `php.exe` dengan argumen `artisan schedule:run`; set **Start in** ke direktori aplikasi dan gunakan akun service yang memiliki izin yang diperlukan.
-- Jadwal command berada pada timezone `Asia/Jakarta`. Keberadaan jadwal di Artisan tidak berarti scheduler OS telah aktif.
+- Auto-confirm diperiksa setiap menit pada timezone `Asia/Jakarta`. Di production, keberadaan jadwal di Artisan tidak berarti scheduler OS telah aktif.
 
 ## 15. Final Production Readiness Assessment
 
-**NOT READY untuk dinyatakan siap produksi.** Dependency sudah diperbarui dan audit Composer/npm bersih; suite test, build, serta browser QA pada alur/viewport yang tercantum lulus. Sebelum rilis, validasi CSP pada cakupan deployment yang lebih luas, pastikan scheduler OS terpasang, dan verifikasi migrasi di database deployment. Pengiriman laporan dengan file foto nyata masih perlu pemeriksaan manual.
+**NOT READY untuk dinyatakan siap produksi.** Dependency sudah diperbarui dan audit Composer/npm bersih; suite test dan build lulus, serta browser QA alur/viewport yang tercantum lulus sebelum CSP enforcement diaktifkan. Sebelum rilis, verifikasi CSP enforcement di browser pada staging, pastikan scheduler OS terpasang, dan verifikasi migrasi di database deployment. Pengiriman laporan dengan file foto nyata masih perlu pemeriksaan manual.
 
 ## Addendum — Verifikasi Browser 26 November 2026
 
@@ -171,7 +173,7 @@ Sumber primer: [Laravel advisory GHSA-8h64-cpq2-9h2g](https://github.com/laravel
 - `composer validate --no-check-publish`: **PASS**.
 - `composer audit --locked`: **PASS**, tidak ada advisory. `npm audit --omit=dev --audit-level=low`: **PASS**, 0 vulnerability. Permintaan audit pertama dari sandbox tidak dapat menyelesaikan DNS; hasil PASS diperoleh setelah pemeriksaan dengan akses registry.
 - `git diff --check`: **PASS**.
-- `php artisan schedule:list`: **NOT VERIFIED pada pemeriksaan ulang ini** karena koneksi workspace ke MySQL `idn_care_stage2_test` ditolak (`SQLSTATE[HY000] [2002] Operation not permitted`). Definisi jadwal di `routes/console.php` tetap ada; ini tidak membuktikan scheduler OS aktif.
+- `php artisan schedule:list`: **PASS** saat dijalankan dengan `CACHE_STORE=array`; `reports:auto-confirm` terdaftar setiap menit. Ini hanya memverifikasi jadwal Laravel, bukan pemanggil scheduler OS.
 - Tidak ada source aplikasi, dependency, secret, database, atau konfigurasi production yang diubah pada pemeriksaan ulang ini. Hanya laporan ini yang diperbarui untuk menyelaraskan status browser dengan bukti terbaru.
 
 ## Addendum — Perbaikan Waktu Riwayat Status
@@ -179,4 +181,31 @@ Sumber primer: [Laravel advisory GHSA-8h64-cpq2-9h2g](https://github.com/laravel
 - Penyebab: model riwayat mematikan timestamp otomatis dan menolak `created_at` dari mass assignment. Akibatnya waktu pada riwayat baru tidak tersimpan.
 - `created_at` sekarang diizinkan pada model. Halaman admin menggunakan waktu pembuatan laporan untuk status awal `dikirim` lama yang tidak memiliki waktu; waktu perubahan status lama lain yang kosong tidak direkonstruksi karena tidak ada dasar yang cukup untuk memastikan waktunya.
 - Test submission, transisi admin, seeder, dan tampilan fallback legacy ditambahkan/diperbarui.
-- Verifikasi: test terfokus **24 lulus, 244 assertion**; seluruh suite **163 lulus, 984 assertion**; `vendor/bin/pint --dirty --format agent` **lulus**; `npm run build` **lulus**.
+- Verifikasi: test timestamp terfokus **24 lulus, 244 assertion**; seluruh suite setelah perubahan scheduler **164 lulus, 987 assertion**; `vendor/bin/pint --dirty --format agent` **lulus**; `npm run build` lulus pada pemeriksaan tampilan sebelumnya.
+
+## Addendum — Auto-confirm Otomatis pada Demo Lokal
+
+- `AppServiceProvider` mendaftarkan `php artisan schedule:work` sebagai proses `scheduler` untuk Laravel `dev` hanya ketika environment bernilai `local`. Karena `composer run dev` menjalankan Laravel `dev`, worker aktif bersama server/Vite selama proses itu tetap berjalan. Mode production tidak mendaftarkan worker ini.
+- Frekuensi `reports:auto-confirm` diubah menjadi setiap menit pada `Asia/Jakarta`; batas bisnis tetap strict lebih dari tujuh hari. Laporan tepat tujuh hari belum dikonfirmasi sampai sudah melewati batas, lalu akan diproses pada pemanggilan scheduler berikutnya (maksimal sekitar satu menit kemudian).
+- Panduan `README.md` dan `docs/pengembangan-lokal.md` menjelaskan `composer run dev` serta cara menjalankan worker terpisah jika server dan Vite dijalankan manual. Hanya satu worker lokal yang boleh aktif.
+- Verifikasi daftar proses: `php artisan dev:list --env=local --filter=scheduler --json` menampilkan `php artisan schedule:work`; `--env=production` tidak menampilkan worker tersebut.
+- Test terfokus scheduler: **13 lulus, 85 assertion**; seluruh suite terbaru **164 lulus, 987 assertion**. `vendor/bin/pint --dirty --format agent` juga lulus. Pemanggil cron/Windows pada server production tetap perlu dikonfigurasi terpisah dan belum diverifikasi.
+
+## Addendum — Pemeriksaan Kesiapan Lanjutan 26 November 2026
+
+- `php artisan test --compact`: **PASS**, 164 test dan 990 assertion.
+- `composer validate --no-check-publish`: **PASS**; `composer audit --locked`: **PASS**, 0 advisory.
+- `npm audit`: **PASS**, 0 vulnerability termasuk dependency development; `npm run build`: **PASS**. Vite memberi peringatan bahwa optimasi font fallback opsional `fontaine` tidak tersedia, tetapi build selesai.
+- `php artisan route:list`: **PASS**, 41 route. `CACHE_STORE=array php artisan schedule:list`: **PASS**, `reports:auto-confirm` terdaftar setiap menit.
+- `php artisan migrate:status`: **PASS**, semua 22 migrasi pada database `idn_care_stage2_test` berstatus `Ran`; tidak ada migrasi yang dijalankan pada pemeriksaan ini.
+- Konfigurasi aktif workspace terverifikasi sebagai lokal (`APP_ENV=local`, `APP_DEBUG=true`, URL localhost). Uji konfigurasi terisolasi menunjukkan `APP_DEBUG` dipaksa `false` dan cookie session `Secure` dipaksa `true` saat `APP_ENV=production`, meski override debug/secure bernilai tidak aman.
+- Password demo plaintext di dokumentasi lokal dan panduan sidang dihapus; petunjuk sekarang memakai `DEMO_USER_PASSWORD` lokal tanpa menuliskan nilainya. Akun dan database tidak diubah.
+- `git diff --check`: **PASS**. CSP enforcement pada seluruh alur dan staging/production masih **NOT VERIFIED di browser**. Konfigurasi secret, HTTPS, storage, dan scheduler OS hosting juga belum diverifikasi.
+
+## Addendum — Uji Browser CSP Lokal 26 November 2026
+
+- Chrome headless membuka halaman login pada server lokal dengan database SQLite sementara di `/private/tmp`; database staging tidak dipakai untuk browser QA.
+- Pemeriksaan pertama menemukan browser menolak literal IPv6 untuk koneksi HMR Vite. CSP kini mengizinkan skema WebSocket hanya pada `APP_ENV=local` ketika file Vite hot tersedia. Pada production, test memastikan `ws:` dan `wss:` tidak ditambahkan.
+- Setelah perbaikan, Chrome menampilkan halaman login, Vite HMR berhasil tersambung, dan log tidak mencatat pelanggaran CSP. Ini memverifikasi pemuatan halaman login lokal; submit login, halaman dashboard, staging, dan production **NOT VERIFIED**.
+- Test CSP terfokus: **6 lulus, 40 assertion**; regression suite: **166 lulus, 998 assertion**. `vendor/bin/pint --dirty --format agent` lulus.
+- Pengecualian `ws:`/`wss:` sengaja hanya untuk local development saat Vite aktif. Jangan set `APP_ENV=local` di hosting production.

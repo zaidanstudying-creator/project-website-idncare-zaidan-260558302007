@@ -10,6 +10,7 @@ use App\Policies\ActivityLogPolicy;
 use App\Policies\CategoryPolicy;
 use App\Policies\LocationPolicy;
 use App\Policies\ReportPolicy;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -32,5 +33,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ActivityLog::class, ActivityLogPolicy::class);
         Gate::policy(Location::class, LocationPolicy::class);
         Gate::policy(Report::class, ReportPolicy::class);
+
+        if ($this->app->environment('local')) {
+            DevCommands::artisan('schedule:work', 'scheduler');
+        }
     }
 }

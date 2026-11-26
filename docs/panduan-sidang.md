@@ -61,7 +61,7 @@ Ikuti [Panduan pengembangan lokal](pengembangan-lokal.md) untuk kebutuhan PHP/My
 | Admin Kemahasiswaan | `ADM-KEMAH` |
 | Super Admin | `SUPER-001` |
 
-Password demo bersama: `Demo-IdnCare-2026!`. Semua akun seed meminta penggantian password saat login pertama. Seeder tidak menimpa akun yang sudah ditemukan berdasarkan `user_code`.
+Password akun demo diambil dari `DEMO_USER_PASSWORD` pada `.env` lokal dan tidak dicantumkan di dokumen ini. Semua akun seed meminta penggantian password saat login pertama. Seeder tidak menimpa akun yang sudah ditemukan berdasarkan `user_code`.
 
 Jangan menjalankan `migrate:fresh` pada database utama. Jangan mengganti `APP_KEY` atau `REPORT_TOKEN_KEY` pada database yang telah digunakan.
 

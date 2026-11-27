@@ -7,7 +7,7 @@
         @if ($report->attachments->isNotEmpty())
             <div class="grid gap-3 border-t border-blue-50 bg-[#F3F7FF] p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
                 @foreach ($report->attachments as $attachment)
-                    <a href="{{ route('attachments.show', $attachment) }}" target="_blank" rel="noopener" class="grid aspect-[4/3] place-items-center rounded-2xl bg-white p-4 text-center text-sm font-bold text-[#0B5FFF]">Lihat lampiran {{ $loop->iteration }}</a>
+                    <a href="{{ route('attachments.show', ['attachment' => $attachment, 'source' => 'monitor']) }}" target="_blank" rel="noopener" class="grid aspect-[4/3] place-items-center rounded-2xl bg-white p-4 text-center text-sm font-bold text-[#0B5FFF]">Lihat lampiran {{ $loop->iteration }}</a>
                 @endforeach
             </div>
         @endif

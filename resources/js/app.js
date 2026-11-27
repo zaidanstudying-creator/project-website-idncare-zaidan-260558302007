@@ -714,6 +714,13 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
 
     const formatFileSize = (bytes) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     const fileSignature = (file) => `${file.name}:${file.size}:${file.lastModified}:${file.type}`;
+    const imageMimeType = (file) => {
+        const mimeType = file.type.toLowerCase();
+        if (['image/jpeg', 'image/png'].includes(mimeType)) return mimeType;
+
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        return ['jpg', 'jpeg'].includes(extension) ? 'image/jpeg' : extension === 'png' ? 'image/png' : mimeType;
+    };
     const setInputFiles = (files) => {
         const transfer = new DataTransfer();
         files.forEach((file) => transfer.items.add(file));
@@ -810,9 +817,9 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
         }
     };
     const encodePhoto = async (file, maxDimension, quality) => {
-        const isSupportedImage = ['image/jpeg', 'image/png'].includes(file.type.toLowerCase());
+        const isSupportedImage = ['image/jpeg', 'image/png'].includes(imageMimeType(file));
         if (isSupportedImage && file.size <= 150 * 1024) return file;
-        if (!file.type.startsWith('image/')) {
+        if (!['image/jpeg', 'image/png'].includes(imageMimeType(file))) {
             throw new Error('Pilih foto dari galeri dengan format JPG atau PNG.');
         }
 
@@ -841,7 +848,7 @@ if (reportPhotoInput instanceof HTMLInputElement && reportPhotoInput.form) {
 
     const optimizePhotos = async (files) => {
         const originalSize = files.reduce((total, file) => total + file.size, 0);
-        const containsUnsupportedImage = files.some((file) => !['image/jpeg', 'image/png'].includes(file.type.toLowerCase()));
+        const containsUnsupportedImage = files.some((file) => !['image/jpeg', 'image/png'].includes(imageMimeType(file)));
         if (originalSize <= maxPhotoPayloadBytes && !containsUnsupportedImage) return { files, originalSize, optimizedSize: originalSize };
 
         const compressionSteps = [

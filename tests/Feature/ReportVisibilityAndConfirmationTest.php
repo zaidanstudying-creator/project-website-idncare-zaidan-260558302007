@@ -297,7 +297,15 @@ it('serves a public report attachment only to users allowed to view that report'
         'kind' => 'evidence',
     ]);
 
-    $this->actingAs($other)->get(route('attachments.show', $attachment))->assertOk();
+    $this->actingAs($other)
+        ->get(route('attachments.show', ['attachment' => $attachment, 'source' => 'monitor']))
+        ->assertOk()
+        ->assertSee(route('monitor.show', $report), false)
+        ->assertSee(route('attachments.image', $attachment), false);
+
+    $this->get(route('attachments.image', $attachment))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
 });
 
 it('auto-confirms only completed reports with no response after seven days', function (): void {

@@ -33,3 +33,17 @@ Pemeriksaan terkait sesudah perubahan scheduler lokal: `php artisan dev:list --e
 - `composer audit --locked`: **PASS**, tidak ditemukan advisory.
 - `npm audit --omit=dev --audit-level=low`: **PASS**, 0 vulnerability.
 - `npm run build`: **PASS**; ada peringatan opsional bahwa `fontaine` tidak terpasang.
+
+## Retest regresi dan audit dependency — 27 November 2026
+
+| Item | Hasil |
+|---|---|
+| Perintah test | `php artisan test --compact` |
+| Status | **PASS** |
+| Test | **167 passed, 0 failed, 0 errors** |
+| Assertion | **1008 passed** |
+| Database test | SQLite in-memory dari konfigurasi PHPUnit |
+| Composer | `composer audit --locked`: **PASS**, tidak ada advisory |
+| npm | `npm audit`: **PASS**, ditemukan 0 vulnerability |
+
+Hasil ini menggantikan status regresi dan dependency yang lebih lama untuk workspace saat pemeriksaan. Coverage tidak diukur. Audit dependency memeriksa advisori registry yang tersedia saat dijalankan; pemeriksaan ini bukan penetration test dan tidak mengubah konfigurasi production.

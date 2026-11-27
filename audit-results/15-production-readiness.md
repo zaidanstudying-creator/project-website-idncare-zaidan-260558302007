@@ -1,21 +1,22 @@
 # Kesiapan produksi
 
-**Verdict: NOT READY.**
+**Verdict: READY berdasarkan konfirmasi manual pemilik (27 November 2026).** Pemilik menyatakan semua pemeriksaan staging/production yang tercantum di checklist telah dilakukan dan aman. Bukti operasional tidak dilampirkan ke workspace ini; status tersebut merupakan attestasi pemilik, bukan verifikasi independen dari agen.
 
 | Gate | Status | Evidence/limit |
 |---|---|---|
-| Authentication | Partial PASS | Bad-credential generic message; login/logout browser PASS. Expiry dan brute force HTTP belum seluruhnya dijalankan. |
-| Authorization | Partial PASS | 53 route/page and forbidden URL assertions lulus; forged Livewire actions/semua kombinasi permission belum diuji. |
-| Reporting | Partial PASS | Aspirasi/anonymous violation submission PASS; facility submit, foto privat, after-photo validation + completion, public approval dan student confirmation PASS pada targeted run. CSV import preview lulus, commit/password distribution belum diuji. Exhaustive form matrix belum lengkap. |
-| Workflow | Partial PASS | Kemahasiswaan status progression dan facility completion/confirmation PASS; delivery/read state notification serta semua status/refusal path belum lengkap. |
-| Privacy | Partial PASS | Anonymous report regression membuktikan reporter_id null/HMAC/secret. Admin anonymity rendering lulus dalam browser run. |
-| Database | PASS for isolated test DB | MySQL TCP, isolated schema and 17 migrations verified. Development DB/data tidak disentuh. |
-| Sessions | Partial | Config cap 30 menit dan test assertion; expiry real-time browser belum diuji. |
-| Notifications | Partial | Notification page render dan aksi ditandai baca sempat dicakup, delivery/action lengkap belum stabil diverifikasi. |
-| Logs | Partial | Source append-only reviewed; attack suite tidak lengkap. |
-| UI | Partial | 53 route PASS, 5 viewport widths no overflow, keyboard focus advances, no pageerrors; workflow suite 16 PASS/8 FAIL. |
-| Dependencies | Findings | Composer 10 advisories; npm 0. Advisori Composer belum dimitigasi. |
-| Tests | Fail | 89 PASS, 7 FAIL; 36 hasil tanpa kategori dari runner. |
-| Deployment | Not assessed | Tidak ada production host/config yang diuji. |
+| Authentication | PASS — owner-confirmed | Pemilik menyatakan QA browser staging/production selesai; suite otomatis juga lulus. |
+| Authorization | PASS — owner-confirmed | Pemilik menyatakan seluruh role dan alur akses diperiksa; route/page matrix historis 53 PASS dan suite terkini lulus. |
+| Reporting | PASS — owner-confirmed | Pemilik menyatakan alur laporan dan lampiran sudah diperiksa pada staging/production. |
+| Workflow | PASS — owner-confirmed | Pemilik menyatakan QA browser menyeluruh, termasuk alur yang sebelumnya belum tercakup, selesai dan aman. |
+| Privacy | PASS — owner-confirmed | Pemilik menyatakan pemeriksaan staging/production selesai; test anonim otomatis juga lulus. |
+| Database | PASS — owner-confirmed | Pemilik menyatakan firewall, grants, backup, dan konfigurasi database deployment sudah diperiksa. Suite otomatis memakai SQLite in-memory. |
+| Sessions | PASS — owner-confirmed | Pemilik menyatakan pemeriksaan sesi staging/production selesai; suite otomatis lulus. |
+| Notifications | PASS — owner-confirmed | Pemilik menyatakan seluruh alur notifikasi sudah diperiksa. |
+| Logs | PASS — owner-confirmed | Pemilik menyatakan pemeriksaan konfigurasi operasional/log deployment selesai. |
+| UI / CSP | PASS — owner-confirmed | Pemilik menyatakan QA browser menyeluruh dan CSP staging/production sudah diperiksa; smoke test lokal juga lulus. |
+| Dependencies | PASS (27 Nov 2026) | `composer audit --locked`: 0 advisory; `npm audit`: 0 vulnerability. |
+| Tests | PASS (27 Nov 2026) | `php artisan test --compact`: 167 passed, 1008 assertions, 0 failure/error. |
+| Build | PASS (27 Nov 2026) | `npm run build` berhasil; hanya ada peringatan opsional paket `fontaine`. |
+| Deployment | PASS — owner-confirmed | Pemilik menyatakan HTTPS, document root, secrets, scheduler OS, dan konfigurasi hosting sudah dicek dan aman. Bukti hosting tidak tersedia di workspace. |
 
-Jangan deploy sampai 7 test gagal direkonsiliasi, advisori Composer ditinjau dan diperbaiki sesuai kompatibilitas, serta browser workflow fasilitas, file, pagination/search dan notifikasi diulang sampai hasil terverifikasi.
+Pemilik juga menyatakan secret scan seluruh Git history dan malware scanning fail-closed telah diperiksa serta aman. Bukti atau log hasil pemeriksaan tidak disertakan; simpan di sistem audit internal bila diperlukan. Temuan suite lama dan advisori dependency telah digantikan oleh retest 27 November 2026; keduanya lulus saat pemeriksaan terakhir. Regression test payload SQL/XSS khusus masih merupakan peningkatan cakupan otomatis, bukan bagian dari attestasi staging/production ini.

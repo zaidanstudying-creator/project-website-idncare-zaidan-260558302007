@@ -97,7 +97,13 @@
                             @if ($report->reportType->code === 'fasilitas')
                                 <label for="after_photo" class="block rounded-2xl border-2 border-dashed border-blue-200 bg-[#F3F7FF] p-4 text-sm">
                                     <span class="font-bold">Foto sesudah perbaikan</span><span class="mt-1 block text-slate-600">JPG, JPEG, atau PNG · maks. 4 MB. Wajib saat status menjadi Selesai.</span>
-                                    <input id="after_photo" wire:model="afterPhoto" type="file" accept="image/jpeg,image/png" class="mt-3 block w-full text-sm text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-[#0B5FFF] file:px-4 file:py-2 file:font-semibold file:text-white">
+                                    <input id="after_photo" wire:model="afterPhoto" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" capture="environment" class="mt-3 block w-full text-sm text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-[#0B5FFF] file:px-4 file:py-2 file:font-semibold file:text-white">
+                                    @if ($afterPhoto)
+                                        <div class="mt-3 flex items-center gap-3 rounded-2xl border border-blue-100 bg-white p-2.5">
+                                            <img src="{{ $afterPhoto->temporaryUrl() }}" alt="Pratinjau foto sesudah perbaikan" class="size-20 rounded-xl border border-blue-100 object-cover">
+                                            <span class="text-xs font-semibold text-slate-600">Pratinjau foto yang akan diunggah</span>
+                                        </div>
+                                    @endif
                                     @error('afterPhoto')<small class="mt-2 block font-semibold text-red-700">{{ $message }}</small>@enderror
                                 </label>
                                 @if ($report->attachments->where('kind', 'after')->isNotEmpty())<p class="text-xs font-semibold text-emerald-700">Foto sesudah sudah tersedia; status dapat diselesaikan tanpa unggah ulang.</p>@endif

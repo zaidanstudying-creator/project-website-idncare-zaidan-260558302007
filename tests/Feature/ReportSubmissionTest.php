@@ -106,7 +106,7 @@ it('stores a facility report with a private photo and routes it to Sarpras', fun
 
     $this->get(route('attachments.show', $attachment))
         ->assertOk()
-        ->assertSee('data:image/', false)
+        ->assertSee(route('attachments.image', $attachment), false)
         ->assertSee(route('admin.reports.show', $report), false);
 });
 
@@ -354,11 +354,12 @@ it('authorizes private attachment access through the report policy', function ()
     $this->actingAs($student)->get(route('attachments.show', $attachment))
         ->assertOk()
         ->assertHeaderContains('Cache-Control', 'no-store')
-        ->assertSee('data:image/png;base64,')
+        ->assertSee(route('attachments.image', $attachment), false)
         ->assertSee(route('reports.show', $report), false)
         ->assertDontSee($student->user_code);
 
     $this->actingAs($otherStudent)->get(route('attachments.show', $attachment))->assertForbidden();
+    $this->get(route('attachments.image', $attachment))->assertForbidden();
 
     $sarpras = User::factory()->create([
         'role' => UserRole::ADMIN_SARPRAS,

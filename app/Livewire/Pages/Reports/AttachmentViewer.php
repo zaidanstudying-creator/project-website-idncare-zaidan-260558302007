@@ -40,13 +40,19 @@ class AttachmentViewer extends Component
     public function render(): View
     {
         $attachment = $this->attachment();
-        [$contentType, $content] = $this->imageContent($attachment);
-        $image = 'data:'.$contentType.';base64,'.base64_encode($content);
-        $backUrl = auth()->user()?->role === UserRole::MAHASISWA
-            ? route('reports.show', $attachment->report_id)
-            : route('admin.reports.show', $attachment->report_id);
+        $user = auth()->user();
+        $fromMonitor = $user?->role === UserRole::MAHASISWA
+            && request()->query('source') === 'monitor'
+            && Report::query()->public()->whereKey($attachment->report_id)->exists();
+        $backUrl = match (true) {
+            $fromMonitor => route('monitor.show', $attachment->report_id),
+            $user?->role === UserRole::MAHASISWA => route('reports.show', $attachment->report_id),
+            default => route('admin.reports.show', $attachment->report_id),
+        };
+        $backLabel = $fromMonitor ? '← Kembali ke detail laporan umum' : '← Kembali ke laporan';
+        $imageUrl = route('attachments.image', $attachment);
 
-        return view('livewire.pages.reports.attachment-viewer', compact('attachment', 'backUrl', 'image'))
+        return view('livewire.pages.reports.attachment-viewer', compact('attachment', 'backUrl', 'backLabel', 'imageUrl'))
             ->title('Lampiran laporan');
     }
 

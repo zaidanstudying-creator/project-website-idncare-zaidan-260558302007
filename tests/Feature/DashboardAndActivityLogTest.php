@@ -66,6 +66,28 @@ it('limits unit activity logs and log access to authorized admin roles', functio
     $this->actingAs($super)->get(route('admin.logs.index'))->assertOk()->assertSee('Facility event')->assertSee('Anonymous event');
 });
 
+it('records and displays the time when an activity log is created without an explicit timestamp', function (): void {
+    $super = User::factory()->create([
+        'role' => UserRole::SUPER_ADMIN,
+        'must_change_password' => false,
+    ]);
+
+    $this->travelTo('2026-11-27 12:34:00');
+    $log = ActivityLog::query()->create([
+        'user_id' => $super->id,
+        'role' => UserRole::SUPER_ADMIN->value,
+        'action' => 'user_updated',
+    ]);
+
+    expect($log->fresh()->created_at?->format('Y-m-d H:i:s'))->toBe('2026-11-27 12:34:00');
+
+    $this->actingAs($super)
+        ->get(route('admin.logs.index'))
+        ->assertOk()
+        ->assertSee('27 Nov 2026')
+        ->assertSee('12:34 WIB');
+});
+
 it('renders role dashboard charts and does not render activity metadata', function (): void {
     $super = User::factory()->create(['role' => UserRole::SUPER_ADMIN, 'must_change_password' => false]);
     ActivityLog::query()->create([

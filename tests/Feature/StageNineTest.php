@@ -399,14 +399,14 @@ it('serves archived attachments only after normal report policy authorization', 
     $report->forceFill(['archived_at' => now(), 'academic_year' => '2025/2026'])->save();
     $attachment = $report->attachments()->create(['file_path' => $archivedImagePath, 'kind' => 'before']);
 
-    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
+    $this->actingAs($admin)->withSession(['auth_version' => $admin->auth_version])->get(route('attachments.show', $attachment))->assertOk()->assertSee(route('attachments.image', $attachment), false);
 
     $assignedUnitAdmin = User::factory()->create([
         'role' => UserRole::ADMIN_KEMAHASISWAAN,
         'must_change_password' => false,
     ])->fresh();
     $this->withSession(['auth_version' => $assignedUnitAdmin->auth_version])->actingAs($assignedUnitAdmin)
-        ->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
+        ->get(route('attachments.show', $attachment))->assertOk()->assertSee(route('attachments.image', $attachment), false);
 
     $wrongUnitAdmin = User::factory()->create([
         'role' => UserRole::ADMIN_SARPRAS,
@@ -443,7 +443,7 @@ it('lets students view their own archived reports and attachments without enabli
         ->assertOk()->assertSee($archived->ticket_no)->assertSee('Diarsipkan');
     $this->get(route('reports.show', $archived->id))
         ->assertOk()->assertSee('Detail dan lampiran tetap tersedia untuk pemilik laporan');
-    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee(route('attachments.image', $attachment), false);
     $this->get(route('reports.show', $otherArchived->id))->assertNotFound();
 
     Livewire::actingAs($owner)->test(StudentReportShow::class, ['report' => (string) $archived->id])
@@ -481,7 +481,7 @@ it('uses the anonymous HMAC owner check for archived student report and attachme
 
     $this->actingAs($owner)->get(route('reports.show', $anonymous->id))
         ->assertOk()->assertSee('Laporan anonim terarsip')->assertDontSee($owner->user_code);
-    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee('data:image/png;base64,');
+    $this->get(route('attachments.show', $attachment))->assertOk()->assertSee(route('attachments.image', $attachment), false);
     $this->actingAs($other)->get(route('reports.show', $anonymous->id))->assertNotFound();
     $this->get(route('attachments.show', $attachment))->assertForbidden();
 });

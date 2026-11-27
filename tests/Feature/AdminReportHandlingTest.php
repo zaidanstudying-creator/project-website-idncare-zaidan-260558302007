@@ -92,14 +92,14 @@ it('shows each report type to every account assigned to its admin role', functio
     $this->actingAs($anotherKemahasiswaan)->get(route('admin.reports.show', $aspiration))->assertOk();
     $this->actingAs($anotherKemahasiswaan)->get(route('admin.reports.show', $violation))->assertOk();
     $this->actingAs($kemahasiswaan)->get(route('attachments.show', $violationAttachment))
-        ->assertOk()->assertSee('data:image/png;base64,', false);
+        ->assertOk()->assertSee(route('attachments.image', $violationAttachment), false);
     $this->actingAs($anotherKemahasiswaan)->get(route('attachments.show', $violationAttachment))
-        ->assertOk()->assertSee('data:image/png;base64,', false);
+        ->assertOk()->assertSee(route('attachments.image', $violationAttachment), false);
     $this->actingAs($superAdmin)->get(route('admin.reports.show', $facility))->assertOk();
     $this->actingAs($superAdmin)->get(route('admin.reports.show', $aspiration))->assertOk();
     $this->actingAs($superAdmin)->get(route('admin.reports.show', $violation))->assertOk();
     $this->actingAs($superAdmin)->get(route('attachments.show', $violationAttachment))
-        ->assertOk()->assertSee('data:image/png;base64,', false);
+        ->assertOk()->assertSee(route('attachments.image', $violationAttachment), false);
     $this->actingAs($sarpras)->get(route('attachments.show', $violationAttachment))->assertForbidden();
 });
 

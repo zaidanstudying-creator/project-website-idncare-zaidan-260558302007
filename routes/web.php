@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Http\Controllers\ReportAttachmentImageController;
 use App\Http\Middleware\PrivateFileResponseHeaders;
 use App\Livewire\Pages\Admin\ActivityLogs\Index as AdminActivityLogsIndex;
 use App\Livewire\Pages\Admin\Archive\Index as AdminArchiveIndex;
@@ -42,6 +43,11 @@ Route::middleware(['auth', 'account.session'])->group(function (): void {
     Route::livewire('/settings/appearance', AppearanceSettings::class)->middleware('force.password.change')->name('settings.appearance');
 
     Route::middleware('force.password.change')->group(function (): void {
+        Route::get('/attachments/{attachment}/image', ReportAttachmentImageController::class)
+            ->whereNumber('attachment')
+            ->middleware(PrivateFileResponseHeaders::class)
+            ->name('attachments.image');
+
         Route::livewire('/attachments/{attachment}', AttachmentViewer::class)->whereNumber('attachment')
             ->middleware(PrivateFileResponseHeaders::class)
             ->name('attachments.show');

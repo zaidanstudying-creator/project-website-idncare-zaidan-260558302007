@@ -3,8 +3,8 @@
 ## IDN-FUNC-001 — Regression suite gagal pada kontrak lama dan render assertions
 
 - **Severity:** Medium (release confidence; sebagian tes menggunakan pola/route lama)
-- **Evidence terbaru:** `php artisan test --compact`: 132 dilaporkan, 89 PASS, 7 FAIL, 470 assertions. Gagal di `AdminReportHandlingTest`, `LivewireUserTableTest`, beberapa `ProfileSummaryTest`, `ReportVisibilityAndConfirmationTest`, dan `StageNineTest`. Penyebab termasuk `assertViewIs()` pada full-page Livewire HTML, assertion konten/markup lama, dan nama route legacy (`reports.confirm`, `admin.users.store`, `admin.archive.store`, `notifications.read`) yang kini tidak tersedia.
-- **Status:** Open. Jangan membuat route kompatibilitas atau melemahkan authorization untuk mengejar test lama; rekonsiliasi coverage ke perilaku dan rute aktif.
+- **Evidence awal (snapshot audit 19 November 2026):** `php artisan test --compact`: 132 dilaporkan, 89 PASS, 7 FAIL, 470 assertions. Gagal di `AdminReportHandlingTest`, `LivewireUserTableTest`, beberapa `ProfileSummaryTest`, `ReportVisibilityAndConfirmationTest`, dan `StageNineTest`. Penyebab termasuk `assertViewIs()` pada full-page Livewire HTML, assertion konten/markup lama, dan nama route legacy (`reports.confirm`, `admin.users.store`, `admin.archive.store`, `notifications.read`) yang kini tidak tersedia.
+- **Status:** Resolved pada retest 27 November 2026. `php artisan test --compact` lulus dengan 167 test dan 1008 assertion. Route legacy tetap tidak ditambahkan; test suite saat ini mengikuti perilaku dan rute Livewire aktif.
 
 ## IDN-FUNC-002 — Session idle timeout melebihi target
 
@@ -33,5 +33,5 @@
 ## IDN-DEP-001 — Advisori dependencies Composer belum ditangani
 
 - **Severity:** Medium/Low dan 8 advisory tanpa severity feed (tidak ada Critical/High berlabel)
-- **Evidence:** `composer audit --locked` menemukan 10 advisori pada 7 package termasuk Laravel framework, PHPUnit, Symfony HTTP Foundation/Kernel/Mime/Routing/Yaml.
-- **Status:** Open; tidak mengubah dependency/lockfile tanpa keputusan upgrade. `npm audit` saat diperiksa melaporkan 0 advisori.
+- **Evidence awal:** `composer audit --locked` menemukan 10 advisori pada 7 package termasuk Laravel framework, PHPUnit, Symfony HTTP Foundation/Kernel/Mime/Routing/Yaml.
+- **Status:** Resolved pada audit 27 November 2026. `composer audit --locked` melaporkan tidak ada advisory dan `npm audit` melaporkan 0 vulnerability. Riwayat temuan 10 advisori di atas adalah snapshot historis, bukan hasil audit terkini.

@@ -14,6 +14,9 @@ class ActivityLog extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (ActivityLog $activityLog): void {
+            $activityLog->created_at ??= now();
+        });
         static::updating(fn () => throw new LogicException('Activity logs are append-only.'));
         static::deleting(fn () => throw new LogicException('Activity logs are append-only.'));
     }

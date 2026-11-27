@@ -133,7 +133,7 @@
                             <button type="button" data-open-report-camera class="rounded-full border border-[#0B5FFF] px-4 py-3 text-sm font-bold text-[#0B5FFF]">Ambil foto</button>
                         </div>
                         <input id="photos" wire:model="photos" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple data-file-preview="photo-preview" data-file-preview-user="{{ auth()->id() }}" data-file-preview-type="{{ $reportType->code }}" @required($isFacility) class="report-photo-input mt-3 block w-full cursor-pointer rounded-xl border border-blue-100 bg-white p-2.5 text-sm file:mr-2 file:rounded-full file:border-0 file:bg-blue-100 file:px-3 file:py-2 file:font-semibold file:text-[#0B5FFF]" @if ($photoErrors) aria-invalid="true" aria-describedby="photos-error" @endif>
-                        <input type="file" accept="image/*" capture="environment" data-report-camera-input hidden>
+                        <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" capture="environment" data-report-camera-input hidden>
                         <div id="photo-preview" wire:ignore class="report-photo-preview mt-4" aria-live="polite"></div>
                         <p class="mt-2 text-xs text-slate-600">Pratinjau disimpan sementara di browser; dihapus setelah laporan terkirim atau maksimal 24 jam.</p>
                         <p data-photo-upload-status role="status" aria-live="polite" class="report-photo-help mt-2 text-sm text-slate-600">Ukuran foto dibatasi agar laporan tetap lancar dikirim.</p>
